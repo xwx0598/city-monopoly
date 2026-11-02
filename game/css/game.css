@@ -244,6 +244,10 @@
     cursor:pointer; user-select:none; }
   .item-chip:hover { background:#E7E0CE; }
 
+  /* ---- 悬赏任务徽章 ---- */
+  .quest-chip { font-size:11px; line-height:1.4; padding:2px 6px; border-radius:6px;
+    background:#F7F0DC; color:#7A6B3A; cursor:help; user-select:none; }
+
   /* ---- 棋盘路障标记 ---- */
   .block-mark { position:absolute; right:1px; bottom:1px; font-size:11px; line-height:1;
     filter:drop-shadow(0 1px 1px rgba(0,0,0,.25)); pointer-events:none; }

@@ -40,6 +40,8 @@ window.Game = {
   stepBlockers: [],      // fn(pi, nextPos)=>truthy，移动逐格判定：返回真表示被迫停在该格（路障）
   turnStart: [],         // fn(pi)，轮到某人行动、掷骰之前触发（AI 使用道具）
   netWorthExtras: [],    // fn(p)=>number，模块资产计入净资产（股票持仓等），累加进 netWorth
+  onPay: [],             // fn(from, to, amount, reason)，真实付款完成后通知（免单的付款不会到这；悬赏任务统计用）
+  onLand: [],            // fn(pi, i)，落格结算完成后通知（悬赏任务「抵达目标地块」用）
   ai: null,           // AI 决策策略，模块可整体替换（见下方默认实现）
   applyMap: null,     // 由 core 提供
   DEFAULT_MAP: null,  // 核心内置地图（模块未加载时兜底）
@@ -577,6 +579,7 @@ async function pay(from, to, amount, reason, silent = false){
   floatMoney(from, -amount);
   if (to !== null) floatMoney(to, amount);
   log(`${players[from].name} ${reason} ¥${amount}`, 'bad');
+  Game.onPay.forEach(f => { try { f(from, to, amount, reason); } catch(e){} });   // 任务统计等在此监听真实付款
   renderPlayers();
   checkBankrupt(from, to);
   return amount;   // 返回实扣金额：入奖池的款项应以实际扣除数为准（保险免单时不入池）
@@ -887,6 +890,7 @@ async function resolveLanding(pi, depth = 0){
     log(`🚶 ${p.name} 停在「${t.name}」歇脚`);   // 未装载对应模块：该地块无害无效果
   }
 
+  Game.onLand.forEach(f => { try { f(pi, i); } catch(e){} });   // 任务「抵达目标地块」在此监听
   renderPlayers();
   checkBankrupt(pi);
   if (players.every(x => x.bankrupt)) endGame();

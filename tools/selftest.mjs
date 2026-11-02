@@ -42,6 +42,8 @@ const CASES = [
   { name: '同屏2人·道具',    q: 'mode=hotseat&n=2&map=mini&mods=items&seed=914' },
   { name: '经典·股票·AI',    q: 'mode=ai&ai=2&map=classic&mods=stocks,weather&seed=915' },
   { name: '地铁·全玩法',     q: 'mode=ai&ai=3&map=metro&mods=synergy,weather,items,stocks&seed=916' },
+  { name: '经典·悬赏·AI',    q: 'mode=ai&ai=2&map=classic&mods=quests&seed=917' },
+  { name: '随机岛·全玩法',   q: 'mode=ai&ai=3&map=random&mseed=77777&mods=weather,items,stocks,quests&seed=918' },
 ];
 
 const args = process.argv.slice(2);
