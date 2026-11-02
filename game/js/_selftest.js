@@ -193,7 +193,7 @@
   // ---------- 自动操作：把人能点的都点掉 ----------
   const OVERLAYS = ['buyModal','cardModal','noticeModal','debtModal','jailModal','auctionModal',
                     'tradeModal','buildModal','resumeModal','statsModal','gameOverModal','synModal',
-                    'shopModal','useModal'];
+                    'shopModal','useModal','stockModal'];
   const lastAct = {};             // overlayId -> { sig, tick, ticks } 上一次操作的内容签名与时刻
   let drainGuard = false;
   let debtKey = '';
@@ -310,6 +310,7 @@
             break;
           }
           case 'useModal': click('useClose'); break;
+          case 'stockModal': click('stockClose'); break;
           case 'statsModal': click('statsClose'); break;
           case 'synModal': click('synClose'); break;
           case 'resumeModal': click('resumeNo'); break;

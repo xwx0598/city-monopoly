@@ -39,6 +39,7 @@ window.Game = {
   rollFilters: [],       // fn(pi, [d1,d2])=>[d1,d2]，掷骰结果改写（遥控骰子等道具用）
   stepBlockers: [],      // fn(pi, nextPos)=>truthy，移动逐格判定：返回真表示被迫停在该格（路障）
   turnStart: [],         // fn(pi)，轮到某人行动、掷骰之前触发（AI 使用道具）
+  netWorthExtras: [],    // fn(p)=>number，模块资产计入净资产（股票持仓等），累加进 netWorth
   ai: null,           // AI 决策策略，模块可整体替换（见下方默认实现）
   applyMap: null,     // 由 core 提供
   DEFAULT_MAP: null,  // 核心内置地图（模块未加载时兜底）
@@ -468,8 +469,11 @@ function rollFace(){
 
 // ================= 经济 =================
 function netWorth(p){
-  return p.money + p.props.reduce((s, i) =>
+  const base = p.money + p.props.reduce((s, i) =>
     s + (tileMortgaged[i] ? Math.round(TILES[i].price * 0.5) : TILES[i].price + buildCost(i) * (tileLevel[i] || 0)), 0);
+  // 模块资产（股票持仓等）：单个钩子出错只跳过自己
+  const extra = Game.netWorthExtras.reduce((s, f) => { try { return s + (f(p) || 0); } catch(e){ return s; } }, 0);
+  return base + extra;
 }
 function ownsWholeGroup(pi, group){ return TILES.every((t, i) => t.type !== 'prop' || t.group !== group || tileOwner[i] === pi); }
 function buildCost(i, pi){

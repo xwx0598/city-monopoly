@@ -40,6 +40,8 @@ const CASES = [
   { name: '地铁·圈地狂AI·4人', q: 'mode=ai&ai=3&map=metro&mods=weather&persona=tycoon&seed=912' },
   { name: '经典·道具·全玩法', q: 'mode=ai&ai=3&map=classic&mods=synergy,weather,items&seed=913' },
   { name: '同屏2人·道具',    q: 'mode=hotseat&n=2&map=mini&mods=items&seed=914' },
+  { name: '经典·股票·AI',    q: 'mode=ai&ai=2&map=classic&mods=stocks,weather&seed=915' },
+  { name: '地铁·全玩法',     q: 'mode=ai&ai=3&map=metro&mods=synergy,weather,items,stocks&seed=916' },
 ];
 
 const args = process.argv.slice(2);

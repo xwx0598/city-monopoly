@@ -228,6 +228,8 @@
   .si-buy { flex:none; padding:6px 12px; font-size:12px !important; border-radius:8px; border:none;
     background:var(--slate); color:#FBF8F2; cursor:pointer; }
   .si-buy:disabled { background:#DFD9CB; color:#9C9789; cursor:default; }
+  .si-btns { flex:none; display:flex; gap:5px; }
+  .si-btns .si-buy { padding:6px 11px; }
   .tgt { display:flex; align-items:center; gap:9px; width:100%; padding:7px 10px; border:1.5px solid #E7E1D2;
     border-radius:10px; background:#FFFDF7; cursor:pointer; text-align:left; }
   .tgt:hover { border-color:var(--slate); background:#FBF8F2; }
