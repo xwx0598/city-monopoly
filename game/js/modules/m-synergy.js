@@ -231,6 +231,156 @@ Game.use('synergy', () => {
   modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
   document.getElementById('synClose').onclick = () => modal.classList.add('hidden');
 
+  // ================================================================
+  // 地块悬停卡片（pure UI）：不用开图鉴就能看到这块地的羁绊归属与双方进度
+  // ================================================================
+  const TIP = document.createElement('div');
+  TIP.id = 'synTip'; TIP.className = 'hidden';
+  document.body.appendChild(TIP);
+
+  const TYPE_LABEL = { prop:'地产', station:'车站', utility:'电站', chance:'机会', tax:'税收',
+    casino:'赌场', police:'交警', go:'起点', jail:'监狱', parking:'奖池停车', bonus:'奖励',
+    insurance:'保险代理', auction:'拍卖行' };
+  const TYPE_DESC = {
+    prop:'可购买并建房升级，同组凑齐租金翻倍',
+    station:'租金随持有车站数递增（¥100 / 200 / 400）',
+    utility:'租金 = 骰点 ×8，双座齐收 ×20',
+    chance:'抽一张事件卡，19 种效果随机',
+    tax:'按总资产 10% 缴税（上限 ¥100），税款进奖池',
+    casino:'押注一把：赢 ¥200 / 输 ¥150（罚金进奖池）',
+    police:'被查违规直接押送监狱，下回合跳过',
+    go:'经过领取工资，可被羁绊加成',
+    jail:'服刑区，可保释或用出狱许可证',
+    parking:'落格卷走奖池全部奖金',
+    bonus:'直接领取 ¥200 奖励',
+    insurance:'花 ¥80 投保，免一次税 / 维修 / 赌场罚金',
+    auction:'随机抽一块无主地立刻公开拍卖',
+  };
+  const defOfGroup  = g => SYNERGY_DEFS.find(d => d.kind === 'group' && d.group === g);
+  const defOfId     = id => SYNERGY_DEFS.find(d => d.id === id);
+  function unitOf(def){ return def.kind === 'levels' ? '级' : (def.kind === 'count' ? '个' : '块'); }
+
+  function playerRows(def){
+    const th = tierThresholds(def);
+    const goal = th[th.length - 1];
+    const color = def.kind === 'group' ? GROUP_COLORS[def.group] : CROSS_COLOR[def.id];
+    return players.map((p, pi) => {
+      if (p.bankrupt) return '';
+      const n = Math.min(countOf(pi, def), goal), tier = tierOf(pi, def);
+      const tn = tier ? (th.length > 1 ? (tier === 1 ? '一阶' : '二阶') : '已达成') : '';
+      return `<div class="tip-prog${tier ? ' on' : ''}">
+          <span class="tip-pn">${p.isAI ? '🤖' : '👤'}${p.name}</span>
+          <span class="tip-track"><span style="width:${n / goal * 100}%;background:${color}"></span></span>
+          <span class="tip-pc">${n}/${goal}${tn ? ' ' + tn : ''}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function synergyBlock(def, note){
+    const th = tierThresholds(def);
+    const color = def.kind === 'group' ? GROUP_COLORS[def.group] : CROSS_COLOR[def.id];
+    const tiers = def.tiers.map((t, ti) =>
+      `<div class="tip-tier"><b>${th.length > 1 ? (ti === 0 ? '一阶' : '二阶') : '效果'}</b>${t.text}` +
+      `<i>需 ${th[ti]} ${unitOf(def)}</i></div>`).join('');
+    return `<div class="tip-sec">
+        <div class="tip-syn"><span class="tip-chip" style="background:${color}">${def.icon} ${def.name}</span>
+          <small>${note || (def.kind === 'group' ? '颜色羁绊' : '组合羁绊')}</small></div>
+        ${tiers}${playerRows(def)}
+      </div>`;
+  }
+
+  function renderTip(i){
+    const t = TILES[i];
+    if (!t) return '';
+    const owner = tileOwner[i], lv = tileLevel[i] || 0;
+    const color = (typeof tileColor === 'function') ? tileColor(t) : (GROUP_COLORS[t.group] || GROUP_COLORS[t.type] || '#8B8779');
+    const ownerTxt = owner === undefined ? '<span class="tip-nil">无主</span>'
+      : `<b style="color:${players[owner].color}">${players[owner].name}</b>`;
+    const room = t.type === 'prop' ? (lv ? ` · ${lv} 级房` : ' · 空地') : '';
+
+    let html = `<div class="tip-head"><b>${t.name}</b>${t.price ? `<span class="tip-price">¥${t.price}</span>` : ''}</div>
+      <div class="tip-meta"><span class="tip-g" style="background:${color}">${t.group || '·'}</span>${TYPE_LABEL[t.type] || '地块'}${room} · ${ownerTxt}</div>`;
+
+    // 租金（含羁绊加成，直接给玩家一个“现在踩上去要付多少”的答案）
+    if (owner !== undefined && ['prop', 'station', 'utility'].includes(t.type)){
+      const r = rentOf(i);
+      const mono = t.type === 'prop' && typeof ownsWholeGroup === 'function' && ownsWholeGroup(owner, t.group);
+      html += `<div class="tip-rent">现租金 <b>¥${r}</b>${tileMortgaged[i] ? '（已抵押，暂不收租）' : ''}${mono ? ' · 已垄断整组 ×2' : ''}</div>`;
+    }
+
+    // 羁绊归属：地产看同色组，车站看出行大师
+    if (t.type === 'prop' && t.group && defOfGroup(t.group)){
+      html += synergyBlock(defOfGroup(t.group));
+    } else if (t.type === 'station'){
+      html += synergyBlock(defOfId('traveler'));
+    } else if (TYPE_DESC[t.type]){
+      html += `<div class="tip-note">${TYPE_DESC[t.type]}</div>`;
+    }
+
+    // 地产额外提示：地产大亨进度（只对持有者有意义，给持有者一行）
+    if (t.type === 'prop' && owner !== undefined){
+      const ty = defOfId('tycoon');
+      const n = countOf(owner, ty);
+      html += `<div class="tip-note">👑 地产大亨：${players[owner].name} ${Math.min(n, ty.n)}/${ty.n} 块地产${n >= ty.n ? '（已达成，租金 +20%）' : ''}</div>`;
+    }
+    return html;
+  }
+
+  function placeTip(ev){
+    const w = TIP.offsetWidth, h = TIP.offsetHeight;
+    let x = ev.clientX + 18, y = ev.clientY + 16;
+    if (x + w > window.innerWidth - 8) x = Math.max(8, ev.clientX - w - 16);
+    if (y + h > window.innerHeight - 8) y = Math.max(8, window.innerHeight - h - 8);
+    TIP.style.left = x + 'px'; TIP.style.top = y + 'px';
+  }
+
+  // 同组地块高亮：一眼看清“还差哪块”（车站则高亮全部车站）
+  function hiGroup(i){
+    document.querySelectorAll('.tile.syn-peer').forEach(el => el.classList.remove('syn-peer'));
+    const t = TILES[i];
+    if (!t) return;
+    const key = t.group || (t.type === 'station' ? 'station' : null);
+    if (!key) return;
+    TILES.forEach((tt, j) => {
+      if (j === i) return;
+      if ((tt.group || (tt.type === 'station' ? 'station' : null)) === key){
+        const el = $('tile' + j);
+        if (el) el.classList.add('syn-peer');
+      }
+    });
+  }
+  function hideTip(){
+    hoverIdx = -1;
+    TIP.classList.add('hidden');
+    document.querySelectorAll('.tile.syn-peer').forEach(el => el.classList.remove('syn-peer'));
+  }
+
+  let hoverIdx = -1;
+  const boardEl = $('board');
+  if (boardEl){
+    boardEl.addEventListener('mouseover', e => {
+      const el = e.target.closest && e.target.closest('.tile');
+      if (!el || !/^tile\d+$/.test(el.id)) return;
+      const i = +el.id.slice(4);
+      if (i === hoverIdx) return;
+      hoverIdx = i;
+      if (document.querySelector('.overlay:not(.hidden)')){
+        // 弹窗期间不打扰
+        TIP.classList.add('hidden');
+        return;
+      }
+      TIP.innerHTML = renderTip(i);
+      TIP.classList.remove('hidden');
+      placeTip(e);
+      hiGroup(i);
+    });
+    boardEl.addEventListener('mousemove', e => {
+      if (!TIP.classList.contains('hidden')) placeTip(e);
+    });
+    boardEl.addEventListener('mouseleave', hideTip);
+  }
+  document.addEventListener('mousedown', hideTip, true);
+
   // 测试钩子
-  Game.synApi = { defs: SYNERGY_DEFS, tierOf, countOf };
+  Game.synApi = { defs: SYNERGY_DEFS, tierOf, countOf, renderTip, hideTip };
 });
