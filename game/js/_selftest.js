@@ -161,6 +161,11 @@
       if (sv.tileOwner[k] !== tileOwner[k]) bad('SAVE_OWNER', `「${TILES[k].name}」存档归属不一致`);
     });
     if ((sv.opt || '') !== (P.get('mods') || '')) bad('SAVE_OPT', `存档 opt=${sv.opt} 与 URL mods 不一致`);
+    // 有持久状态的玩法必须把状态写进存档（否则续档功能形同虚设）
+    const SAVEFUL = { stats: 1, weather: 1, items: 1, stocks: 1, quests: 1 };
+    (P.get('mods') || '').split(',').filter(m => m && m !== '0' && SAVEFUL[m]).forEach(m => {
+      if (!sv.mods || sv.mods[m] === undefined) bad('SAVE_MOD_STATE', `存档缺少 ${m} 的模块状态`);
+    });
   }
 
   // ---------- DOM 一致性（节流执行） ----------

@@ -90,7 +90,8 @@ function saveGame(){
   if (gameOver) return;
   try {
     const mods = {};
-    Game.saveExtras.forEach(f => Object.assign(mods, f()));
+    // 单个模块的 saveExtras 抛错只跳过它自己，不能连累整份自动存档
+    Game.saveExtras.forEach(f => { try { Object.assign(mods, f()); } catch(e){ console.warn('[saveExtras 失败]', e); } });
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 2, mode: GAME_MODE, savedAt: Date.now(), round, turn,
       players: players.map(p => ({ money:p.money, pos:p.pos, props:[...p.props], bankrupt:p.bankrupt, skip:p.skip || 0, jail:p.jail || 0, jailCard:p.jailCard || 0, insured:p.insured || 0 })),
