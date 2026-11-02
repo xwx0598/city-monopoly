@@ -59,24 +59,42 @@ document.getElementById('rulesModal').addEventListener('click', e => {
   if (e.target.id === 'rulesModal') closeRules();
 });
 
-function openAiSetup(){
-  // 有存档时用上次的设置作为默认值，方便“同设置再来一局”
-  const d = readSlot({ key:'monopoly_save_v3_ai', mode:'ai', expect:2 });
-  if (d){
-    AI_SETUP.count = Math.min(3, Math.max(1, parseInt(d.ai) || 1));
-    if (d.attrs){
-      ['buy','build','tactic'].forEach(k => {
-        if (['easy','normal','hard'].includes(d.attrs[k])) AI_SETUP[k] = d.attrs[k];
-      });
-    }
-  }
-  document.getElementById('aiModal').classList.remove('hidden');
-  syncSegs();
+// ============ 两屏切换：先选模式 → 再配玩法 ============
+let SETUP_MODE = 'ai';        // 'ai' | 'hotseat'
+let HOTSEAT_N = 2;
+
+function showView(name){
+  const isSetup = name === 'setup';
+  document.body.classList.toggle('setup-mode', isSetup);
+  document.getElementById('viewMode').classList.toggle('hidden', isSetup);
+  document.getElementById('viewSetup').classList.toggle('hidden', !isSetup);
+  window.scrollTo({ top: 0 });
 }
-function closeAiSetup(){ document.getElementById('aiModal').classList.add('hidden'); }
-document.getElementById('aiModal').addEventListener('click', e => {
-  if (e.target.id === 'aiModal') closeAiSetup();
+
+function showSetup(mode, n){
+  SETUP_MODE = mode === 'hotseat' ? 'hotseat' : 'ai';
+  if (n) HOTSEAT_N = Math.min(4, Math.max(2, n));
+  const ai = SETUP_MODE === 'ai';
+  document.getElementById('secDiff').classList.toggle('hidden', !ai);
+  document.getElementById('secCount').classList.toggle('hidden', ai);
+  document.getElementById('setupTitle').textContent = ai ? '单机 vs AI' : '本地同屏对战';
+  document.getElementById('startBtn').textContent = ai ? '开始对局' : '开始 ' + HOTSEAT_N + ' 人对局';
+  showView('setup');
+  syncSegs();
+  syncSummary();
+  const hash = ai ? '#setup=ai' : '#setup=hotseat' + HOTSEAT_N;
+  if (location.hash !== hash) history.replaceState(null, '', hash);
+}
+
+function showModePicker(){
+  showView('mode');
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+}
+
+document.querySelectorAll('[data-mode]').forEach(b => {
+  b.addEventListener('click', () => showSetup(b.dataset.mode, b.dataset.mode === 'hotseat' ? HOTSEAT_N : 0));
 });
+document.getElementById('backBtn').addEventListener('click', showModePicker);
 
 // ============ 地图选择 ============
 const MAP_KEY = 'monopoly_map_pref';
@@ -89,13 +107,7 @@ function syncMapOpts(){
   document.querySelectorAll('#mapOpts button').forEach(b => {
     b.classList.toggle('on', b.dataset.map === MAP_PREF);
   });
-  // 同屏对战的人数按钮始终跟随当前地图选择（并带上可选玩法参数）
-  document.querySelectorAll('.hotseat-opts a').forEach(a => {
-    const n = a.dataset.slot.replace('hotseat', '');
-    const ms = (document.getElementById('mseedInput') || {}).value || '';
-    a.href = '../../game/html/game.html?mode=hotseat&n=' + n + '&map=' + MAP_PREF + '&new=1' + modsQuery()
-      + (MAP_PREF === 'random' && /^\d{1,6}$/.test(ms.trim()) ? '&mseed=' + ms.trim() : '');
-  });
+  syncSummary();
 }
 document.getElementById('mapOpts').addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -104,54 +116,78 @@ document.getElementById('mapOpts').addEventListener('click', e => {
   try { localStorage.setItem(MAP_KEY, MAP_PREF); } catch(err){}
   syncMapOpts();
 });
-// 注意：首次调用 syncMapOpts 必须等 MODS_PREF 初始化之后（见下方可选玩法段），
-// 因为 syncMapOpts → modsQuery 会读取 MODS_PREF，提前调用会踩 TDZ 报错
+document.getElementById('mseedInput').addEventListener('input', syncSummary);
 
 // ============ 可选玩法开关（?mods= 参数传给对局） ============
 const MODS_KEY = 'monopoly_mods_pref';
 let MODS_PREF = (() => {
   try { const v = JSON.parse(localStorage.getItem(MODS_KEY)); return Array.isArray(v) ? v : []; } catch(e){ return []; }
 })();
-function modsQuery(){ return MODS_PREF.length ? '&mods=' + MODS_PREF.join(',') : ''; }
+
+// 玩法套餐：一键勾好常用组合，仍可手动微调（微调后自动变「自定义」）
+const PRESETS = {
+  none:  [],
+  std:   ['synergy', 'weather', 'items', 'quests'],
+  chaos: ['synergy', 'weather', 'items', 'stocks', 'quests', 'visit', 'vote'],
+};
+function saveMods(){ try { localStorage.setItem(MODS_KEY, JSON.stringify(MODS_PREF)); } catch(e){} }
+function presetKey(){
+  const cur = MODS_PREF.slice().sort().join(',');
+  for (const k in PRESETS){
+    if (PRESETS[k].slice().sort().join(',') === cur) return k;
+  }
+  return 'custom';
+}
 function syncModsOpts(){
   document.querySelectorAll('#modsOpts button').forEach(b => {
     b.classList.toggle('on', MODS_PREF.includes(b.dataset.mod));
   });
+  const k = presetKey();
+  document.querySelectorAll('#presetRow button').forEach(b => b.classList.toggle('on', b.dataset.preset === k));
   const n = MODS_PREF.length;
   const cnt = document.getElementById('modsCount');
   if (cnt) cnt.textContent = n ? `已启用 ${n} 项` : '未启用 · 纯经典规则';
   const clr = document.getElementById('modsClear');
   if (clr) clr.classList.toggle('hidden', !n);
+  syncSummary();
 }
 document.getElementById('modsOpts').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   const m = b.dataset.mod;
   MODS_PREF = MODS_PREF.includes(m) ? MODS_PREF.filter(x => x !== m) : MODS_PREF.concat(m);
-  try { localStorage.setItem(MODS_KEY, JSON.stringify(MODS_PREF)); } catch(err){}
+  saveMods();
   syncModsOpts();
-  syncMapOpts();   // 同屏入口链接要带上最新开关
 });
 document.getElementById('modsClear').addEventListener('click', () => {
   MODS_PREF = [];
-  try { localStorage.setItem(MODS_KEY, JSON.stringify(MODS_PREF)); } catch(err){}
+  saveMods();
   syncModsOpts();
-  syncMapOpts();
 });
-document.getElementById('mseedInput').addEventListener('input', syncMapOpts);
-syncModsOpts();
-syncMapOpts();   // MODS_PREF 已就绪，这里才能安全带上可选玩法参数
+document.getElementById('presetRow').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || b.dataset.preset === 'custom') return;   // 「自定义」只是状态指示，不响应点击
+  MODS_PREF = PRESETS[b.dataset.preset].slice();
+  saveMods();
+  syncModsOpts();
+});
 
 // ============ 对局设置分段控件 ============
-const SEG_COLOR = { '1':'#6E7C88', '2':'#8E86A0', '3':'#B5806F', easy:'#93A0AA', normal:'#B08968', hard:'#B5806F' };
+const SEG_COLOR = { '1':'#6E7C88', '2':'#8E86A0', '3':'#B5806F', '4':'#B5806F', easy:'#93A0AA', normal:'#B08968', hard:'#B5806F' };
 const AI_SETUP = { count:1, buy:'normal', build:'normal', tactic:'normal' };
 
-document.querySelectorAll('#aiModal .seg').forEach(seg => {
+document.querySelectorAll('#viewSetup .seg').forEach(seg => {
   seg.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
     if (seg.id === 'segCount'){
       AI_SETUP.count = parseInt(b.dataset.v);
+    } else if (seg.id === 'segN'){
+      HOTSEAT_N = parseInt(b.dataset.v);
+      document.getElementById('startBtn').textContent = '开始 ' + HOTSEAT_N + ' 人对局';
+      const hash = '#setup=hotseat' + HOTSEAT_N;
+      if (location.hash !== hash) history.replaceState(null, '', hash);
+      syncSummary();
     } else if (seg.id === 'segPreset'){
       AI_SETUP.buy = AI_SETUP.build = AI_SETUP.tactic = b.dataset.v;
     } else {
@@ -163,9 +199,10 @@ document.querySelectorAll('#aiModal .seg').forEach(seg => {
 
 function syncSegs(){
   const uniform = AI_SETUP.buy === AI_SETUP.build && AI_SETUP.build === AI_SETUP.tactic;
-  document.querySelectorAll('#aiModal .seg').forEach(seg => {
+  document.querySelectorAll('#viewSetup .seg').forEach(seg => {
     let cur;
     if (seg.id === 'segCount') cur = String(AI_SETUP.count);
+    else if (seg.id === 'segN') cur = String(HOTSEAT_N);
     else if (seg.id === 'segPreset') cur = uniform ? AI_SETUP.buy : '';
     else cur = AI_SETUP[seg.dataset.attr];
     seg.querySelectorAll('button').forEach(b => {
@@ -175,23 +212,53 @@ function syncSegs(){
       b.style.color = on ? '#fff' : '';
     });
   });
+  syncSummary();
 }
 
-document.getElementById('aiStartBtn').addEventListener('click', () => {
-  if (readSlot(SAVE_SLOTS[0]) && !confirm('开始新对局会清空「单机 vs AI」的存档，确定吗？')) return;
-  const q = new URLSearchParams({
-    mode:'ai', ai:String(AI_SETUP.count),
-    buy:AI_SETUP.buy, build:AI_SETUP.build, tactic:AI_SETUP.tactic,
-    map: MAP_PREF, new:'1',
-  });
+// ============ 摘要文案（模式卡 + 开始条） ============
+const DIFF_NAME = { easy:'简单', normal:'普通', hard:'困难' };
+function diffLabel(){
+  const v = [AI_SETUP.buy, AI_SETUP.build, AI_SETUP.tactic];
+  return v.every(x => x === v[0]) ? DIFF_NAME[v[0]] : '自定义难度';
+}
+function modsLabel(){ return MODS_PREF.length ? MODS_PREF.length + ' 项玩法' : '纯经典玩法'; }
+
+function syncSummary(){
+  const m = MAP_NAMES[MAP_PREF];
+  const aiSum = document.getElementById('sumAi');
+  if (aiSum) aiSum.textContent = `${m} · ${modsLabel()} · ${diffLabel()}`;
+  const hsSum = document.getElementById('sumHotseat');
+  if (hsSum) hsSum.textContent = `${m} · ${modsLabel()}`;
+  const tip = document.getElementById('startTip');
+  if (tip) tip.textContent = SETUP_MODE === 'ai'
+    ? `即将开始：${m} · ${modsLabel()} · ${AI_SETUP.count} 位 AI · ${diffLabel()}`
+    : `即将开始：${m} · ${modsLabel()} · ${HOTSEAT_N} 人同屏`;
+}
+
+// ============ 开始对局 ============
+document.getElementById('startBtn').addEventListener('click', () => {
+  const q = new URLSearchParams({ new:'1', map: MAP_PREF });
+  let slot;
+  if (SETUP_MODE === 'ai'){
+    q.set('mode', 'ai');
+    q.set('ai', String(AI_SETUP.count));
+    q.set('buy', AI_SETUP.buy);
+    q.set('build', AI_SETUP.build);
+    q.set('tactic', AI_SETUP.tactic);
+    slot = SAVE_SLOTS[0];
+  } else {
+    q.set('mode', 'hotseat');
+    q.set('n', String(HOTSEAT_N));
+    slot = SAVE_SLOTS.find(s => s.id === 'hotseat' + HOTSEAT_N);
+  }
   if (MAP_PREF === 'random'){
     const ms = (document.getElementById('mseedInput').value || '').trim();
     if (/^\d{1,6}$/.test(ms)) q.set('mseed', ms);
   }
   if (MODS_PREF.length) q.set('mods', MODS_PREF.join(','));
+  if (slot && readSlot(slot) && !confirm('开始新对局会清空「' + slot.label + '」的存档，确定吗？')) return;
   location.href = '../../game/html/game.html?' + q.toString();
 });
-syncSegs();
 
 // ============ 存档识别 ============
 const SAVE_SLOTS = [
@@ -287,31 +354,32 @@ function renderSaves(){
   syncButtons();
 }
 
-// 有存档时：相关入口加存档小圆点 + 开新局前二次确认
+// 有存档时：模式卡按钮挂小圆点（开新局前会在「开始对局」二次确认）
 function syncButtons(){
-  SAVE_SLOTS.forEach(slot => {
-    const data = readSlot(slot);
-    document.querySelectorAll('[data-slot="' + slot.id + '"]').forEach(link => {
-      link.classList.toggle('has-save', !!data);
-      link.onclick = data ? (e => {
-        if (!confirm('开始新对局会清空「' + slot.label + '」的存档，确定吗？')){
-          e.preventDefault();
-          return false;
-        }
-      }) : null;
-    });
-  });
-  // 单机卡片的入口按钮也点亮存档小圆点（确认逻辑在弹窗的开始按钮上）
-  const aiCardBtn = document.getElementById('aiSetupBtn');
-  if (aiCardBtn) aiCardBtn.classList.toggle('has-save', !!readSlot(SAVE_SLOTS[0]));
+  const has = id => !!readSlot(SAVE_SLOTS.find(s => s.id === id));
+  const ai = document.getElementById('goAi');
+  if (ai) ai.classList.toggle('has-save', has('ai'));
+  const hs = document.getElementById('goHotseat');
+  if (hs) hs.classList.toggle('has-save', has('hotseat2') || has('hotseat3') || has('hotseat4'));
 }
 
 renderSaves();
 
 // 从对局返回、或切回本页时刷新存档列表
-window.addEventListener('pageshow', renderSaves);
+window.addEventListener('pageshow', () => { renderSaves(); syncModsOpts(); syncMapOpts(); syncSegs(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) renderSaves(); });
 
-// 支持 #rules / #ai 直达对应弹窗
-if (location.hash === '#rules') openRules();
-if (location.hash === '#ai') openAiSetup();
+// ============ 初始化 + 直链支持 ============
+syncModsOpts();
+syncMapOpts();
+syncSegs();
+
+(function initHash(){
+  const h = location.hash;
+  if (h === '#rules'){ openRules(); return; }
+  if (h === '#ai'){ showSetup('ai'); return; }
+  const m = /^#setup=(ai|hotseat[2-4])$/.exec(h);
+  if (!m) return;
+  if (m[1] === 'ai') showSetup('ai');
+  else showSetup('hotseat', parseInt(m[1].slice(7), 10));
+})();

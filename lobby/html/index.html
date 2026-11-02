@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>城市大富翁 · 游戏大厅</title>
-<link rel="stylesheet" href="../css/lobby.css?v=20261102e">
+<link rel="stylesheet" href="../css/lobby.css?v=20261102f">
 </head>
 <body>
 <div class="hero">
@@ -17,97 +17,156 @@
   <p>回合制棋盘经营 · 买地建房收租 · 本地存档 · 局域网多设备畅玩</p>
 </div>
 
-<div class="setup">
-  <div class="sec">
-    <div class="sec-head">
-      <span class="sec-ico">🗺️</span><span class="sec-label">本局地图</span>
-      <span class="sec-tip">随机岛屿可输入分享码，与好友玩同一张图</span>
+<!-- ========== 第一屏：先选模式 ========== -->
+<div class="view" id="viewMode">
+  <div class="mode-grid">
+    <div class="card mode-card">
+      <div class="top"></div>
+      <div class="icon"><svg class="ico" data-ic="crown" viewBox="-32 -32 64 64" style="width:30px;height:30px"></svg></div>
+      <h3>单机 vs AI</h3>
+      <p>你 1 人对战 1~3 位 AI，买地 / 建房 / 对抗三项难度可混搭。</p>
+      <div class="mode-sum" id="sumAi">经典小城 · 纯经典玩法 · 普通</div>
+      <div class="acts"><button class="btn" id="goAi" data-mode="ai">配置对局 →</button></div>
+      <div class="saves" id="savesAi"></div>
     </div>
-    <div class="map-opts" id="mapOpts">
-      <button data-map="classic" title="24 格 · 4 组地产 · 标准局">经典小城<small>24 格</small></button>
-      <button data-map="mini" title="20 格 · 4 组地产 · 节奏更快">迷你快棋<small>20 格</small></button>
-      <button data-map="metro" title="32 格 · 5 组地产 · 大局">繁华都会<small>32 格</small></button>
-      <button data-map="random" title="每局随机生成尺寸与地产组合">随机岛屿<small>20~32 格</small></button>
-      <input id="mseedInput" class="mseed" placeholder="分享码" maxlength="6" inputmode="numeric" autocomplete="off" title="选填：输入别人分享的 5~6 位数字，随机岛屿会复现同一张图">
+
+    <div class="card mode-card p2">
+      <div class="top"></div>
+      <div class="icon"><svg class="ico" data-ic="pawn" viewBox="-32 -32 64 64" style="width:28px;height:28px"></svg></div>
+      <h3>本地同屏对战</h3>
+      <p>2~4 人轮流操作同一台设备，手机平板传着玩，最适合朋友围坐。</p>
+      <div class="mode-sum" id="sumHotseat">经典小城 · 纯经典玩法</div>
+      <div class="acts"><button class="btn" id="goHotseat" data-mode="hotseat">配置对局 →</button></div>
+      <div class="saves" id="savesHotseat"></div>
+    </div>
+
+    <div class="card mode-card p4">
+      <div class="top"></div>
+      <div class="icon"><svg class="ico" data-ic="award" viewBox="-32 -32 64 64" style="width:30px;height:30px"></svg></div>
+      <h3>在线联机对战</h3>
+      <p>与远程好友实时对战，需要房间服务器同步状态，正在规划中。</p>
+      <div class="mode-sum off">开发中</div>
+      <div class="acts"><span class="btn dim">敬请期待</span></div>
     </div>
   </div>
 
-  <div class="sec">
-    <div class="sec-head">
-      <span class="sec-ico">🧩</span><span class="sec-label">可选玩法</span>
-      <span class="sec-count" id="modsCount">未启用</span>
-      <button class="sec-clear hidden" id="modsClear">全部清空</button>
-      <span class="sec-tip">悬停看说明 · 只影响新开局，存档对局沿用开局时的选择</span>
-    </div>
-    <div class="mod-grid" id="modsOpts">
-      <button class="mod" data-mod="synergy" title="金铲铲式羁绊：同色地块凑够数量、或达成特殊组合，激活额外效果">
-        <span class="mod-ico">🧩</span><span class="mod-main"><b>羁绊体系</b><small>同色 / 组合 → 额外效果</small></span><span class="mod-sw"></span>
-      </button>
-      <button class="mod" data-mod="weather" title="每 3 回合全城换一次天气：雨季降租、旺季加工资、停电压租金、施工涨价、庆典加租">
-        <span class="mod-ico">🌦️</span><span class="mod-main"><b>天气系统</b><small>全城周期性风云变幻</small></span><span class="mod-sw"></span>
-      </button>
-      <button class="mod" data-mod="items" title="道具商店：免租卡、加倍卡、路障、遥控骰子、拆迁卡，地图商店格或顶栏商店按钮购买">
-        <span class="mod-ico">🛍️</span><span class="mod-main"><b>道具商店</b><small>五种一次性道具斗智斗勇</small></span><span class="mod-sw"></span>
-      </button>
-      <button class="mod" data-mod="stocks" title="城市股市：4 家公司股价每回合波动，可买卖，持仓计入净资产，落后者的翻盘窗口">
-        <span class="mod-ico">📈</span><span class="mod-main"><b>城市股票</b><small>低买高卖 · 持仓计入资产</small></span><span class="mod-sw"></span>
-      </button>
-      <button class="mod" data-mod="quests" title="悬赏任务：定期接到悬赏令（抵达目标地块/累计收租），完成领奖金，超期作废">
-        <span class="mod-ico">📋</span><span class="mod-main"><b>悬赏任务</b><small>接令赶工 · 完成领赏</small></span><span class="mod-sw"></span>
-      </button>
-      <button class="mod" data-mod="visit" title="探监放贷：落监狱角可替狱中玩家交保释金捞人，换取其下一笔租金 50% 提成">
-        <span class="mod-ico">🤝</span><span class="mod-main"><b>探监放贷</b><small>捞人换租金提成</small></span><span class="mod-sw"></span>
-      </button>
-      <button class="mod" data-mod="vote" title="城市建设项目：第 15 回合起表决公共项目（地铁延伸/城市公园/商圈升级），赞成者平摊建设费，效益全城共享">
-        <span class="mod-ico">🏛️</span><span class="mod-main"><b>城市建设</b><small>集资公共项目全城受益</small></span><span class="mod-sw"></span>
-      </button>
-    </div>
+  <div class="quick-links">
+    <a href="#" onclick="openRules();return false;">完整规则与玩法说明 →</a>
+    <span>租金公式 · 房屋三级 · 事件卡 · 全部可选玩法</span>
   </div>
 </div>
 
-<div class="grid">
-  <!-- 单机 vs AI -->
-  <div class="card">
-    <div class="top"></div>
-    <div class="icon"><svg class="ico" data-ic="crown" viewBox="-32 -32 64 64" style="width:30px;height:30px"></svg></div>
-    <h3>单机 vs AI</h3>
-    <p>自由设定 AI 数量（1~3 位）与逐项难度：买地、建房、对抗策略可混搭出自定义对手。</p>
-    <div class="acts"><a class="btn" id="aiSetupBtn" href="#" onclick="openAiSetup();return false;">开始对战</a></div>
-    <div class="saves" id="savesAi"></div>
+<!-- ========== 第二屏：对局设置 ========== -->
+<div class="view hidden" id="viewSetup">
+  <div class="setup-head">
+    <button class="back-btn" id="backBtn">← 换模式</button>
+    <span class="setup-title" id="setupTitle">单机 vs AI</span>
+    <span class="setup-hint">设置只影响这一局，下次进来自动用上次的选择</span>
   </div>
 
-  <!-- 本地同屏 -->
-  <div class="card p2">
-    <div class="top"></div>
-    <div class="icon"><svg class="ico" data-ic="pawn" viewBox="-32 -32 64 64" style="width:28px;height:28px"></svg></div>
-    <h3>本地同屏对战</h3>
-    <p>2~4 人轮流操作同一台设备，手机平板上传着玩，最适合朋友围坐。</p>
-    <div class="hotseat-opts">
-      <a href="../../game/html/game.html?mode=hotseat&n=2&new=1" data-slot="hotseat2">2 人</a>
-      <a href="../../game/html/game.html?mode=hotseat&n=3&new=1" data-slot="hotseat3">3 人</a>
-      <a href="../../game/html/game.html?mode=hotseat&n=4&new=1" data-slot="hotseat4">4 人</a>
+  <div class="setup">
+    <div class="sec">
+      <div class="sec-head">
+        <span class="sec-ico">🗺️</span><span class="sec-label">本局地图</span>
+        <span class="sec-tip">随机岛屿可输入分享码，与好友玩同一张图</span>
+      </div>
+      <div class="map-opts" id="mapOpts">
+        <button data-map="classic" title="24 格 · 4 组地产 · 标准局">经典小城<small>24 格</small></button>
+        <button data-map="mini" title="20 格 · 4 组地产 · 节奏更快">迷你快棋<small>20 格</small></button>
+        <button data-map="metro" title="32 格 · 5 组地产 · 大局">繁华都会<small>32 格</small></button>
+        <button data-map="random" title="每局随机生成尺寸与地产组合">随机岛屿<small>20~32 格</small></button>
+        <input id="mseedInput" class="mseed" placeholder="分享码" maxlength="6" inputmode="numeric" autocomplete="off" title="选填：输入别人分享的 5~6 位数字，随机岛屿会复现同一张图">
+      </div>
     </div>
-    <div class="saves" id="savesHotseat"></div>
+
+    <div class="sec">
+      <div class="sec-head">
+        <span class="sec-ico">🧩</span><span class="sec-label">可选玩法</span>
+        <span class="sec-count" id="modsCount">未启用</span>
+        <button class="sec-clear hidden" id="modsClear">全部清空</button>
+      </div>
+      <div class="presets" id="presetRow">
+        <button data-preset="none">纯经典<small>只跑核心规则</small></button>
+        <button data-preset="std">标准<small>羁绊 + 天气 + 道具 + 悬赏</small></button>
+        <button data-preset="chaos">大乱斗<small>七项全开</small></button>
+        <button data-preset="custom">自定义<small>按需逐个勾选</small></button>
+      </div>
+      <div class="mod-grid" id="modsOpts">
+        <button class="mod" data-mod="synergy" title="金铲铲式羁绊：同色地块凑够数量、或达成特殊组合，激活额外效果">
+          <span class="mod-ico">🧩</span><span class="mod-main"><b>羁绊体系</b><small>同色 / 组合 → 额外效果</small></span><span class="mod-sw"></span>
+        </button>
+        <button class="mod" data-mod="weather" title="每 3 回合全城换一次天气：雨季降租、旺季加工资、停电压租金、施工涨价、庆典加租">
+          <span class="mod-ico">🌦️</span><span class="mod-main"><b>天气系统</b><small>全城周期性风云变幻</small></span><span class="mod-sw"></span>
+        </button>
+        <button class="mod" data-mod="items" title="道具商店：免租卡、加倍卡、路障、遥控骰子、拆迁卡，地图商店格或顶栏商店按钮购买">
+          <span class="mod-ico">🛍️</span><span class="mod-main"><b>道具商店</b><small>五种一次性道具斗智斗勇</small></span><span class="mod-sw"></span>
+        </button>
+        <button class="mod" data-mod="stocks" title="城市股市：4 家公司股价每回合波动，可买卖，持仓计入净资产，落后者的翻盘窗口">
+          <span class="mod-ico">📈</span><span class="mod-main"><b>城市股票</b><small>低买高卖 · 持仓计入资产</small></span><span class="mod-sw"></span>
+        </button>
+        <button class="mod" data-mod="quests" title="悬赏任务：定期接到悬赏令（抵达目标地块/累计收租），完成领奖金，超期作废">
+          <span class="mod-ico">📋</span><span class="mod-main"><b>悬赏任务</b><small>接令赶工 · 完成领赏</small></span><span class="mod-sw"></span>
+        </button>
+        <button class="mod" data-mod="visit" title="探监放贷：落监狱角可替狱中玩家交保释金捞人，换取其下一笔租金 50% 提成">
+          <span class="mod-ico">🤝</span><span class="mod-main"><b>探监放贷</b><small>捞人换租金提成</small></span><span class="mod-sw"></span>
+        </button>
+        <button class="mod" data-mod="vote" title="城市建设项目：第 15 回合起表决公共项目（地铁延伸/城市公园/商圈升级），赞成者平摊建设费，效益全城共享">
+          <span class="mod-ico">🏛️</span><span class="mod-main"><b>城市建设</b><small>集资公共项目全城受益</small></span><span class="mod-sw"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sec" id="secDiff">
+      <div class="sec-head">
+        <span class="sec-ico">🤖</span><span class="sec-label">对手设置</span>
+        <span class="sec-tip">三项难度可混搭，用「快速预设」一键改全部</span>
+      </div>
+      <div class="setup-row">
+        <span class="setup-label">AI 数量<i>你 1 人 + AI 若干，同桌对战</i></span>
+        <div class="seg" id="segCount">
+          <button data-v="1">1 位</button><button data-v="2">2 位</button><button data-v="3">3 位</button>
+        </div>
+      </div>
+      <div class="setup-row">
+        <span class="setup-label">快速预设<i>一键设置下面三项</i></span>
+        <div class="seg" id="segPreset">
+          <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+        </div>
+      </div>
+      <div class="setup-row">
+        <span class="setup-label">买地风格<i>随手就买，还是精打细算留现金</i></span>
+        <div class="seg" data-attr="buy">
+          <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+        </div>
+      </div>
+      <div class="setup-row">
+        <span class="setup-label">建房风格<i>从不盖房，到精于升级收租</i></span>
+        <div class="seg" data-attr="build">
+          <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+        </div>
+      </div>
+      <div class="setup-row">
+        <span class="setup-label">对抗策略<i>困难会抢你差一块就凑齐的组</i></span>
+        <div class="seg" data-attr="tactic">
+          <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec hidden" id="secCount">
+      <div class="sec-head">
+        <span class="sec-ico">👥</span><span class="sec-label">玩家人数</span>
+        <span class="sec-tip">轮流操作同一台设备 · 每种人数各有独立存档槽</span>
+      </div>
+      <div class="seg" id="segN">
+        <button data-v="2">2 人</button><button data-v="3">3 人</button><button data-v="4">4 人</button>
+      </div>
+    </div>
   </div>
 
-  <!-- 玩法说明 -->
-  <a class="card p3" href="#" onclick="openRules();return false;">
-    <div class="top"></div>
-    <div class="icon"><svg class="ico" data-ic="card" viewBox="-32 -32 64 64" style="width:26px;height:26px"></svg></div>
-    <h3>玩法说明</h3>
-    <p>棋盘规则、租金推算、事件卡效果、房屋升级收益，30 秒看懂怎么赢。</p>
-    <div class="chips"><span>租金公式</span><span>房屋三级</span><span>事件卡</span></div>
-    <span class="btn">查看规则</span>
-  </a>
-
-  <!-- 在线联机（占位） -->
-  <div class="card p4">
-    <div class="top"></div>
-    <div class="icon"><svg class="ico" data-ic="award" viewBox="-32 -32 64 64" style="width:30px;height:30px"></svg></div>
-    <h3>在线联机对战</h3>
-    <p>与远程好友实时对战，需要房间服务器同步状态，正在规划中。</p>
-    <div class="chips dim"><span>房间匹配</span><span>实时同步</span><span>断线重连</span></div>
-    <span class="btn">开发中</span>
+  <div class="startbar">
+    <button class="start-btn" id="startBtn">开始对局</button>
+    <span class="start-tip" id="startTip"></span>
   </div>
 </div>
 
@@ -169,53 +228,7 @@
   </div>
 </div>
 
-<!-- 对局设置弹窗（单机 vs AI） -->
-<div class="overlay hidden" id="aiModal">
-  <div class="modal">
-    <h3>对局设置 · 单机 vs AI</h3>
-
-    <div class="setup-row" style="border-bottom:1px solid #F3F1EA">
-      <span class="setup-label">AI 对手数量<i>你 1 人 + AI 若干，同桌对战</i></span>
-      <div class="seg" id="segCount">
-        <button data-v="1">1 位</button><button data-v="2">2 位</button><button data-v="3">3 位</button>
-      </div>
-    </div>
-
-    <div class="setup-row">
-      <span class="setup-label">快速预设<i>一键设置下面所有项</i></span>
-      <div class="seg" id="segPreset">
-        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
-      </div>
-    </div>
-
-    <div class="attr-t"><b>逐项调整</b>：三项可以混搭，组合出你想要的自定义对手</div>
-    <div class="setup-row">
-      <span class="setup-label">买地风格<i>随手就买，还是精打细算留现金</i></span>
-      <div class="seg" data-attr="buy">
-        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
-      </div>
-    </div>
-    <div class="setup-row">
-      <span class="setup-label">建房风格<i>从不盖房，到精于升级收租</i></span>
-      <div class="seg" data-attr="build">
-        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
-      </div>
-    </div>
-    <div class="setup-row">
-      <span class="setup-label">对抗策略<i>困难会抢你差一块就凑齐的组</i></span>
-      <div class="seg" data-attr="tactic">
-        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
-      </div>
-    </div>
-
-    <div class="modal-btns">
-      <button class="ghost" onclick="closeAiSetup()">取消</button>
-      <button class="primary" id="aiStartBtn" data-slot="ai">开始对局</button>
-    </div>
-  </div>
-</div>
-
 <script src="../js/icons.js"></script>
-<script src="../js/lobby.js?v=20261102f"></script>
+<script src="../js/lobby.js?v=20261102g"></script>
 </body>
 </html>
