@@ -102,7 +102,8 @@ document.getElementById('mapOpts').addEventListener('click', e => {
   try { localStorage.setItem(MAP_KEY, MAP_PREF); } catch(err){}
   syncMapOpts();
 });
-syncMapOpts();
+// 注意：首次调用 syncMapOpts 必须等 MODS_PREF 初始化之后（见下方可选玩法段），
+// 因为 syncMapOpts → modsQuery 会读取 MODS_PREF，提前调用会踩 TDZ 报错
 
 // ============ 可选玩法开关（?mods= 参数传给对局） ============
 const MODS_KEY = 'monopoly_mods_pref';
@@ -125,6 +126,7 @@ document.getElementById('modsOpts').addEventListener('click', e => {
   syncMapOpts();   // 同屏入口链接要带上最新开关
 });
 syncModsOpts();
+syncMapOpts();   // MODS_PREF 已就绪，这里才能安全带上可选玩法参数
 
 // ============ 对局设置分段控件 ============
 const SEG_COLOR = { '1':'#6E7C88', '2':'#8E86A0', '3':'#B5806F', easy:'#93A0AA', normal:'#B08968', hard:'#B5806F' };
