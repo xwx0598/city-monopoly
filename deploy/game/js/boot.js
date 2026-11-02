@@ -25,13 +25,15 @@
     const wrap = $('boardWrap');
     const vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
     // 桌面端适当放大棋盘（3D 倾斜后视觉会缩小，放一点更有桌游存在感）
-    const avail = vw >= 900 ? Math.min(620, vw - 400) : Math.max(260, vw - 36);
-    // 除数用 580 而非 530：perspective 投影会把棋盘近端放大约 9%，
-    // 按 530 算会导致左右两列地块超出容器、压到旁边的面板（重合 bug）
-    const scale = Math.min(1.2, avail / 580);
+    const avail = vw >= 900 ? Math.min(660, vw - 400) : Math.max(260, vw - 36);
+    const scale = Math.min(1.2, avail / 530);
     wrap.style.transform = `scale(${scale})`;
     wrap.style.height = (530 * scale) + 'px';
     wrap.style.width = (530 * scale) + 'px';
+    // perspective 投影会把棋盘近端（底边两角）放大约 9%，左右各留出等宽内边距，
+    // 让溢出落在自己的留白里而不是压到旁边面板；棋盘本身不缩小，布局向两边撑满
+    const pad = Math.ceil(26 * scale);
+    wrap.style.margin = `0 ${pad}px`;
   }
   window.addEventListener('resize', fitBoard);
   fitBoard();
