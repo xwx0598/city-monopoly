@@ -162,15 +162,15 @@
   .presets button.on small { color:rgba(251,248,242,.78); }
 
   /* 开始条：奶油色底座与设置面板连成一体，避免灰按钮贴灰底 */
-  .startbar { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap;
+  .startbar { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px;
     width:100%; max-width:1010px; margin:0 auto;
     background:linear-gradient(168deg,#FBF9F3,#F1EDE3);
     border:1px solid var(--line); border-top:none; border-radius:0 0 18px 18px;
-    padding:14px 18px 16px;
+    padding:15px 18px 17px;
     box-shadow:0 14px 30px rgba(64,68,74,.2), inset 0 1.5px 0 rgba(255,255,255,.7); }
   /* 新浏览器：面板与开始条连体，去掉面板底部圆角；老浏览器自动降级 */
   .setup:has(+ .startbar) { border-bottom-left-radius:0; border-bottom-right-radius:0; padding-bottom:14px; }
-  .start-btn { padding:12px 46px; border:none; border-radius:13px;
+  .start-btn { min-width:250px; padding:13px 52px; border:none; border-radius:13px;
     background:linear-gradient(160deg,#C09A72,var(--camel-deep)); color:#FBF8F2;
     font-size:15px; font-weight:600; letter-spacing:3px; font-family:inherit; cursor:pointer; transition:.15s;
     box-shadow:0 4px 0 #7A5A40, 0 12px 22px rgba(110,80,52,.32), inset 0 1px 0 rgba(255,255,255,.3); }
