@@ -37,7 +37,7 @@
     cfg: { mode: GAME_MODE, ai: AI_COUNT, hotseat: HOTSEAT_N, map: MAP && MAP.name, tiles: TILES.length,
            mods: P.get('mods') || '', seed: SEED, loaded: Game._loaded.slice(), off: Game._off.slice() },
     ok: true, finished: false, endReason: '', round: 1, turns: 0,
-    players: [], stats: { landing: {}, maxLevel: 0, clicks: 0, debts: 0, jails: 0, auctions: 0, buys: 0, items: 0, trail: [] },
+    players: [], stats: { landing: {}, maxLevel: 0, clicks: 0, debts: 0, jails: 0, auctions: 0, buys: 0, items: 0, votes: 0, projects: 0, trail: [] },
     violations: [], warnings: [], errors: [], stall: null,
   };
   // 运行时错误（含异步链里被吞掉的 Promise 拒绝）是最隐蔽的一类 bug，必须抓
@@ -162,7 +162,7 @@
     });
     if ((sv.opt || '') !== (P.get('mods') || '')) bad('SAVE_OPT', `存档 opt=${sv.opt} 与 URL mods 不一致`);
     // 有持久状态的玩法必须把状态写进存档（否则续档功能形同虚设）
-    const SAVEFUL = { stats: 1, weather: 1, items: 1, stocks: 1, quests: 1 };
+    const SAVEFUL = { stats: 1, weather: 1, items: 1, stocks: 1, quests: 1, visit: 1, vote: 1 };
     (P.get('mods') || '').split(',').filter(m => m && m !== '0' && SAVEFUL[m]).forEach(m => {
       if (!sv.mods || sv.mods[m] === undefined) bad('SAVE_MOD_STATE', `存档缺少 ${m} 的模块状态`);
     });
@@ -193,7 +193,7 @@
   // ---------- 自动操作：把人能点的都点掉 ----------
   const OVERLAYS = ['buyModal','cardModal','noticeModal','debtModal','jailModal','auctionModal',
                     'tradeModal','buildModal','resumeModal','statsModal','gameOverModal','synModal',
-                    'shopModal','useModal','stockModal'];
+                    'shopModal','useModal','stockModal','visitModal','voteModal'];
   const lastAct = {};             // overlayId -> { sig, tick, ticks } 上一次操作的内容签名与时刻
   let drainGuard = false;
   let debtKey = '';
@@ -311,6 +311,19 @@
           }
           case 'useModal': click('useClose'); break;
           case 'stockModal': click('stockClose'); break;
+          case 'voteModal': {
+            // 六成赞成（公共设施对 AI/人都是长期利好）
+            if (Math.random() < 0.6) click('voteYes');
+            else click('voteNo');
+            break;
+          }
+          case 'visitModal': {
+            // 三成概率捞人（选列表第一个），否则不捞
+            const bail = document.querySelector('#visitList .tgt');
+            if (bail && Math.random() < 0.3) bail.click();
+            else click('visitClose');
+            break;
+          }
           case 'statsModal': click('statsClose'); break;
           case 'synModal': click('synClose'); break;
           case 'resumeModal': click('resumeNo'); break;
@@ -394,6 +407,10 @@
   function finalize(reason){
     try {
       if (Game.itemsApi) report.stats.items = players.reduce((s2, _, pi) => s2 + Game.itemsApi.totalItems(pi), 0);
+      if (Game.voteApi){
+        report.stats.votes = Game.voteApi.proposed().length;
+        report.stats.projects = Game.voteApi.active().length;
+      }
     } catch(e){}
     if (done) return;
     done = true;
