@@ -117,6 +117,11 @@ function syncModsOpts(){
   document.querySelectorAll('#modsOpts button').forEach(b => {
     b.classList.toggle('on', MODS_PREF.includes(b.dataset.mod));
   });
+  const n = MODS_PREF.length;
+  const cnt = document.getElementById('modsCount');
+  if (cnt) cnt.textContent = n ? `已启用 ${n} 项` : '未启用 · 纯经典规则';
+  const clr = document.getElementById('modsClear');
+  if (clr) clr.classList.toggle('hidden', !n);
 }
 document.getElementById('modsOpts').addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -126,6 +131,12 @@ document.getElementById('modsOpts').addEventListener('click', e => {
   try { localStorage.setItem(MODS_KEY, JSON.stringify(MODS_PREF)); } catch(err){}
   syncModsOpts();
   syncMapOpts();   // 同屏入口链接要带上最新开关
+});
+document.getElementById('modsClear').addEventListener('click', () => {
+  MODS_PREF = [];
+  try { localStorage.setItem(MODS_KEY, JSON.stringify(MODS_PREF)); } catch(err){}
+  syncModsOpts();
+  syncMapOpts();
 });
 document.getElementById('mseedInput').addEventListener('input', syncMapOpts);
 syncModsOpts();

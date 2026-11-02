@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>城市大富翁 · 游戏大厅</title>
-<link rel="stylesheet" href="../css/lobby.css?v=20261102d">
+<link rel="stylesheet" href="../css/lobby.css?v=20261102e">
 </head>
 <body>
 <div class="hero">
@@ -17,27 +17,51 @@
   <p>回合制棋盘经营 · 买地建房收租 · 本地存档 · 局域网多设备畅玩</p>
 </div>
 
-<div class="mapbar">
-  <span class="mapbar-label">本局地图</span>
-  <div class="map-opts" id="mapOpts">
-    <button data-map="classic" title="24 格 · 4 组地产 · 标准局">经典小城<small>24 格</small></button>
-    <button data-map="mini" title="20 格 · 4 组地产 · 节奏更快">迷你快棋<small>20 格</small></button>
-    <button data-map="metro" title="32 格 · 5 组地产 · 大局">繁华都会<small>32 格</small></button>
-    <button data-map="random" title="每局随机生成尺寸与地产组合">随机岛屿<small>20~32 格</small></button>
-    <input id="mseedInput" class="mseed" placeholder="分享码" maxlength="6" inputmode="numeric" autocomplete="off" title="选填：输入别人分享的 5~6 位数字，随机岛屿会复现同一张图">
+<div class="setup">
+  <div class="sec">
+    <div class="sec-head">
+      <span class="sec-ico">🗺️</span><span class="sec-label">本局地图</span>
+      <span class="sec-tip">随机岛屿可输入分享码，与好友玩同一张图</span>
+    </div>
+    <div class="map-opts" id="mapOpts">
+      <button data-map="classic" title="24 格 · 4 组地产 · 标准局">经典小城<small>24 格</small></button>
+      <button data-map="mini" title="20 格 · 4 组地产 · 节奏更快">迷你快棋<small>20 格</small></button>
+      <button data-map="metro" title="32 格 · 5 组地产 · 大局">繁华都会<small>32 格</small></button>
+      <button data-map="random" title="每局随机生成尺寸与地产组合">随机岛屿<small>20~32 格</small></button>
+      <input id="mseedInput" class="mseed" placeholder="分享码" maxlength="6" inputmode="numeric" autocomplete="off" title="选填：输入别人分享的 5~6 位数字，随机岛屿会复现同一张图">
+    </div>
   </div>
-</div>
 
-<div class="mapbar">
-  <span class="mapbar-label">可选玩法</span>
-  <div class="map-opts" id="modsOpts">
-    <button data-mod="synergy" title="金铲铲式羁绊：同色地块凑够数量、或达成特殊组合，激活额外效果">🧩 羁绊体系<small>同色 / 组合 → 额外效果</small></button>
-    <button data-mod="weather" title="每 3 回合全城换一次天气：雨季降租、旺季加工资、停电压租金、施工涨价、庆典加租">🌦️ 天气系统<small>全城周期性风云变幻</small></button>
-    <button data-mod="items" title="道具商店：免租卡、加倍卡、路障、遥控骰子、拆迁卡，地图商店格或顶栏商店按钮购买">🛍️ 道具商店<small>可购买一次性道具</small></button>
-    <button data-mod="stocks" title="城市股市：4 家公司股价每回合波动，可买卖，持仓计入净资产，落后者的翻盘窗口">📈 城市股票<small>持仓计入净资产</small></button>
-    <button data-mod="quests" title="悬赏任务：定期接到悬赏令（抵达目标地块/累计收租），完成领奖金，超期作废">📋 悬赏任务<small>完成领赏 · 超期作废</small></button>
-    <button data-mod="visit" title="探监放贷：落监狱角可替狱中玩家交保释金捞人，换取其下一笔租金 50% 提成">🤝 探监放贷<small>捞人换租金提成</small></button>
-    <button data-mod="vote" title="城市建设项目：第 15 回合起表决公共项目（地铁延伸/城市公园/商圈升级），赞成者平摊建设费，效益全城共享">🏛️ 城市建设<small>集资公共项目</small></button>
+  <div class="sec">
+    <div class="sec-head">
+      <span class="sec-ico">🧩</span><span class="sec-label">可选玩法</span>
+      <span class="sec-count" id="modsCount">未启用</span>
+      <button class="sec-clear hidden" id="modsClear">全部清空</button>
+      <span class="sec-tip">悬停看说明 · 只影响新开局，存档对局沿用开局时的选择</span>
+    </div>
+    <div class="mod-grid" id="modsOpts">
+      <button class="mod" data-mod="synergy" title="金铲铲式羁绊：同色地块凑够数量、或达成特殊组合，激活额外效果">
+        <span class="mod-ico">🧩</span><span class="mod-main"><b>羁绊体系</b><small>同色 / 组合 → 额外效果</small></span><span class="mod-sw"></span>
+      </button>
+      <button class="mod" data-mod="weather" title="每 3 回合全城换一次天气：雨季降租、旺季加工资、停电压租金、施工涨价、庆典加租">
+        <span class="mod-ico">🌦️</span><span class="mod-main"><b>天气系统</b><small>全城周期性风云变幻</small></span><span class="mod-sw"></span>
+      </button>
+      <button class="mod" data-mod="items" title="道具商店：免租卡、加倍卡、路障、遥控骰子、拆迁卡，地图商店格或顶栏商店按钮购买">
+        <span class="mod-ico">🛍️</span><span class="mod-main"><b>道具商店</b><small>五种一次性道具斗智斗勇</small></span><span class="mod-sw"></span>
+      </button>
+      <button class="mod" data-mod="stocks" title="城市股市：4 家公司股价每回合波动，可买卖，持仓计入净资产，落后者的翻盘窗口">
+        <span class="mod-ico">📈</span><span class="mod-main"><b>城市股票</b><small>低买高卖 · 持仓计入资产</small></span><span class="mod-sw"></span>
+      </button>
+      <button class="mod" data-mod="quests" title="悬赏任务：定期接到悬赏令（抵达目标地块/累计收租），完成领奖金，超期作废">
+        <span class="mod-ico">📋</span><span class="mod-main"><b>悬赏任务</b><small>接令赶工 · 完成领赏</small></span><span class="mod-sw"></span>
+      </button>
+      <button class="mod" data-mod="visit" title="探监放贷：落监狱角可替狱中玩家交保释金捞人，换取其下一笔租金 50% 提成">
+        <span class="mod-ico">🤝</span><span class="mod-main"><b>探监放贷</b><small>捞人换租金提成</small></span><span class="mod-sw"></span>
+      </button>
+      <button class="mod" data-mod="vote" title="城市建设项目：第 15 回合起表决公共项目（地铁延伸/城市公园/商圈升级），赞成者平摊建设费，效益全城共享">
+        <span class="mod-ico">🏛️</span><span class="mod-main"><b>城市建设</b><small>集资公共项目全城受益</small></span><span class="mod-sw"></span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -192,6 +216,6 @@
 </div>
 
 <script src="../js/icons.js"></script>
-<script src="../js/lobby.js?v=20261102e"></script>
+<script src="../js/lobby.js?v=20261102f"></script>
 </body>
 </html>
