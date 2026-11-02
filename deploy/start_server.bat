@@ -10,7 +10,7 @@ echo ============================================
 cd /d "%~dp0"
 where py >nul 2>nul
 if %errorlevel%==0 (
-  py -3 -m http.server 8686 --bind 0.0.0.0
+  py -3 server.py
 ) else (
-  python -m http.server 8686 --bind 0.0.0.0
+  python server.py
 )
