@@ -36,6 +36,8 @@ const CASES = [
   { name: '地铁·羁绊·另一种子', q: 'mode=ai&ai=3&map=metro&mods=synergy&seed=808' },
   { name: '经典·天气·4人',   q: 'mode=ai&ai=3&map=classic&mods=synergy,weather&seed=909' },
   { name: '同屏3人·天气',    q: 'mode=hotseat&n=3&map=metro&mods=weather&seed=910' },
+  { name: '经典·收租佬AI·2人', q: 'mode=ai&ai=1&map=classic&mods=synergy&persona=renter&seed=911' },
+  { name: '地铁·圈地狂AI·4人', q: 'mode=ai&ai=3&map=metro&mods=weather&persona=tycoon&seed=912' },
 ];
 
 const args = process.argv.slice(2);

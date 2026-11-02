@@ -14,6 +14,22 @@ Game.use('ai-diff', () => {
   const DIFF_TAG_BG = { easy: '#E7EBEE', normal: '#F3EAE0', hard: '#F3E4E2', custom: '#F0EDE6' };
   const DIFF_TAG_FG = { easy: '#5F6C78', normal: '#8E6B4E', hard: '#A05752', custom: '#8B8779' };
   const diffQS = k => DIFF_LEVELS.includes(QS.get(k)) ? QS.get(k) : 'normal';
+
+  // ---- AI 性格（叠加在难度之上）：persona=tycoon|renter|bully|mixed|off，默认 mixed ----
+  // mixed 时按玩家序号轮换分配（pi=0 是人类），确定性分配让存档天然一致，无需额外存状态
+  const PERSONAS = {
+    tycoon: { name:'圈地狂', desc:'看见地就想买，砍价不眨眼', bg:'#EFE0DC', fg:'#A05752' },
+    renter: { name:'收租佬', desc:'只收车站电站，地产非垄断不碰', bg:'#E4E9E2', fg:'#5E7A5A' },
+    bully:  { name:'老赖',   desc:'拍卖场里专门抬价阻击领先者', bg:'#E9E3F0', fg:'#6F5E8E' },
+  };
+  const PERSONA_CYCLE = ['tycoon', 'renter', 'bully'];
+  const personaQS = QS.get('persona') || '';
+  let personaMode = ['tycoon','renter','bully','mixed','off'].includes(personaQS) ? personaQS : 'mixed';
+  function personaOf(pi){
+    if (GAME_MODE !== 'ai' || personaMode === 'off') return null;
+    if (personaMode !== 'mixed') return personaMode;
+    return PERSONA_CYCLE[(pi - 1) % PERSONA_CYCLE.length] || null;   // pi=0 人类没有性格
+  }
   const AI_ATTR = GAME_MODE === 'ai' ? { buy: diffQS('buy'), build: diffQS('build'), tactic: diffQS('tactic') } : null;
   const AI_ATTR_LABEL = { buy: '买地', build: '建房', tactic: '策略' };
   function aiOverall(){
@@ -34,6 +50,14 @@ Game.use('ai-diff', () => {
   function aiWantsBuy(pi, i){
     const p = players[pi], t = TILES[i];
     if (p.money < t.price) return false;
+
+    // 性格优先于难度：圈地狂什么都想要；收租佬只碰车站/电站/补垄断
+    const ps = personaOf(pi);
+    if (ps === 'tycoon') return p.money - t.price >= 50;
+    if (ps === 'renter'){
+      if (t.type === 'station' || t.type === 'utility') return p.money - t.price >= 150;
+      return groupState(pi, i).mine === groupState(pi, i).size - 1 && p.money - t.price >= 250;
+    }
 
     const style = AI_ATTR.buy;
     if (style === 'easy') return Math.random() < 0.6;  // 付得起就六成概率随手买
@@ -62,6 +86,7 @@ Game.use('ai-diff', () => {
 
     // 均衡建设：只在 canBuildAt 允许的地块上加盖（同组 1-1-1 → 2-2-2 → 3-3-3）
     let cands = p.props.filter(i => TILES[i].type === 'prop' && canBuildAt(pi, i));
+    if (personaOf(pi) === 'renter') cands = cands.filter(i => ownsWholeGroup(pi, TILES[i].group));
     if (!cands.length) return;
 
     // 排序：垄断组优先 → 等级低优先（性价比） → 地价低优先
@@ -90,6 +115,10 @@ Game.use('ai-diff', () => {
     const t = TILES[i], p = players[pi];
     const style = AI_ATTR ? AI_ATTR.buy : 'normal';
     let factor = style === 'easy' ? 0.5 : style === 'normal' ? 0.7 : 0.9;
+    const ps = personaOf(pi);
+    if (ps === 'tycoon') factor += 0.1;                                          // 圈地狂舍得加价
+    if (ps === 'renter') factor += (t.type === 'station' || t.type === 'utility') ? 0.2 : -0.15;
+    if (ps === 'bully') factor += 0.2;                                           // 老赖为阻击而抬价
     const s = groupState(pi, i);
     if (s.mine === s.size - 1) factor += 0.25;                                  // 买下即凑齐垄断 → 舍得加钱
     if (AI_ATTR && AI_ATTR.tactic === 'hard' && s.opp === s.size - 1) factor += 0.2;  // 阻击对手凑垄断
@@ -116,11 +145,14 @@ Game.use('ai-diff', () => {
       const p = players[pi];
       if (!p.isAI) return '';
       const o = aiOverall();
-      return `<span class="diff-tag" style="background:${DIFF_TAG_BG[o]};color:${DIFF_TAG_FG[o]}">${AI_DIFF_NAME[o] || '自定义'}</span>`;
+      let html = `<span class="diff-tag" style="background:${DIFF_TAG_BG[o]};color:${DIFF_TAG_FG[o]}">${AI_DIFF_NAME[o] || '自定义'}</span>`;
+      const ps = personaOf(pi);
+      if (ps) html += ` <span class="diff-tag" style="background:${PERSONAS[ps].bg};color:${PERSONAS[ps].fg}">${PERSONAS[ps].name}</span>`;
+      return html;
     });
 
     // 存档：难度随档保存
-    Game.saveExtras.push(() => ({ 'ai-diff': { attrs: { ...AI_ATTR }, ai: AI_COUNT } }));
+    Game.saveExtras.push(() => ({ 'ai-diff': { attrs: { ...AI_ATTR }, ai: AI_COUNT, persona: personaMode } }));
     Game.loadExtras.push(sv => {
       const m = sv.mods && sv.mods['ai-diff'];
       const attrs = (m && m.attrs) || (GAME_MODE === 'ai' ? sv.attrs : null);
@@ -129,12 +161,17 @@ Game.use('ai-diff', () => {
           if (DIFF_LEVELS.includes(attrs[k])) AI_ATTR[k] = attrs[k];
         });
       }
+      if (m && ['tycoon','renter','bully','mixed','off'].includes(m.persona)) personaMode = m.persona;
     });
   }
 
   // 开局播报难度
   Game.onStart.push(() => {
     if (GAME_MODE !== 'ai') return;
+    const psList = players.map((p, pi) => p.isAI ? `${p.name}·${PERSONAS[personaOf(pi)] ? PERSONAS[personaOf(pi)].name : '无性格'}` : '').filter(Boolean);
+    if (personaMode === 'off') log('🤖 AI 性格：已关闭（persona=off）');
+    else if (personaMode === 'mixed') log(`🤖 AI 性格：${psList.join(' · ')}`);
+    else log(`🤖 AI 性格：全员 ${PERSONAS[personaMode].name} —— ${PERSONAS[personaMode].desc}`);
     const o = aiOverall();
     if (o === 'custom'){
       log(`🤖 AI 自定义：${Object.keys(AI_ATTR).map(k => AI_ATTR_LABEL[k] + AI_DIFF_NAME[AI_ATTR[k]]).join(' · ')}`);
