@@ -36,6 +36,9 @@ window.Game = {
   payFilters: [],     // fn(from, to, amount, reason)=>amount，付款金额增减（羁绊的付租减免等），在免单判定后执行
   buildCostFilters: [], // fn(pi, cost)=>cost，建造费折扣（羁绊模块用），buildCost(i, pi) 时生效
   cardMoneyFilters: [], // fn(pi, money)=>money，事件卡正负金额调整（羁绊的事件卡减免用）
+  rollFilters: [],       // fn(pi, [d1,d2])=>[d1,d2]，掷骰结果改写（遥控骰子等道具用）
+  stepBlockers: [],      // fn(pi, nextPos)=>truthy，移动逐格判定：返回真表示被迫停在该格（路障）
+  turnStart: [],         // fn(pi)，轮到某人行动、掷骰之前触发（AI 使用道具）
   ai: null,           // AI 决策策略，模块可整体替换（见下方默认实现）
   applyMap: null,     // 由 core 提供
   DEFAULT_MAP: null,  // 核心内置地图（模块未加载时兜底）
@@ -546,7 +549,7 @@ async function pay(from, to, amount, reason, silent = false){
   for (const f of Game.payWaivers){
     try {
       if (f(from, to, amount, reason) === null){
-        log(`🛡️ ${players[from].name} 无需支付「${reason}」¥${amount}（由保险承担）`, 'good');
+        log(`🛡️ ${players[from].name} 本次「${reason}」¥${amount} 被免除`, 'good');
         return 0;
       }
     } catch(e){}
@@ -786,9 +789,16 @@ function openBuildModal(pi, onClose){
 async function moveSteps(pi, steps, animate = true){
   const p = players[pi];
   for (let s = 0; s < steps; s++){
-    p.pos = (p.pos + 1) % TILES.length;
+    const nextPos = (p.pos + 1) % TILES.length;
+    let forcedStop = false;
+    for (const f of Game.stepBlockers){
+      try { if (f(pi, nextPos)){ forcedStop = true; break; } } catch(e){}
+    }
+    p.pos = nextPos;
     positionTokens();
     if (animate) await sleep(150);
+    // 被迫停下：不再继续走剩下的步数（工资照结算，落点照常处理）
+    if (forcedStop){ break; }
     if (p.pos === 0){
       let salary = SALARY;
       Game.salaryFilters.forEach(f => { try { salary = f(pi, salary); } catch(e){} });
@@ -1153,7 +1163,11 @@ async function rollDice(){
   updateBuildBtn();
   const p = players[turn];
 
-  const [d1, d2] = await spinDice(...rollFace());
+  let faces = rollFace();
+  for (const f of Game.rollFilters){
+    try { const v = f(turn, faces); if (Array.isArray(v) && v.length === 2) faces = v; } catch(e){}
+  }
+  const [d1, d2] = await spinDice(...faces);
   log(`🎲 ${p.name} 掷出 ${d1} + ${d2} = ${d1+d2}${d1===d2 ? '（双数，再来一次）' : ''}`);
 
   await moveSteps(turn, d1 + d2);
@@ -1213,6 +1227,7 @@ function nextStep(samePlayer){
     handleJailTurn(turn);
     return;
   }
+  Game.turnStart.forEach(f => { try { f(turn); } catch(e){} });   // 回合开始（道具/任务模块在此行动）
   saveGame();
   renderPlayers();
   $('turnInfo').textContent = p.isAI ? `${p.name} 思考中…` : `轮到 ${p.name} 行动`;

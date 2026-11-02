@@ -37,7 +37,7 @@
     cfg: { mode: GAME_MODE, ai: AI_COUNT, hotseat: HOTSEAT_N, map: MAP && MAP.name, tiles: TILES.length,
            mods: P.get('mods') || '', seed: SEED, loaded: Game._loaded.slice(), off: Game._off.slice() },
     ok: true, finished: false, endReason: '', round: 1, turns: 0,
-    players: [], stats: { landing: {}, maxLevel: 0, clicks: 0, debts: 0, jails: 0, auctions: 0, trail: [] },
+    players: [], stats: { landing: {}, maxLevel: 0, clicks: 0, debts: 0, jails: 0, auctions: 0, buys: 0, items: 0, trail: [] },
     violations: [], warnings: [], errors: [], stall: null,
   };
   // 运行时错误（含异步链里被吞掉的 Promise 拒绝）是最隐蔽的一类 bug，必须抓
@@ -192,7 +192,8 @@
 
   // ---------- 自动操作：把人能点的都点掉 ----------
   const OVERLAYS = ['buyModal','cardModal','noticeModal','debtModal','jailModal','auctionModal',
-                    'tradeModal','buildModal','resumeModal','statsModal','gameOverModal','synModal'];
+                    'tradeModal','buildModal','resumeModal','statsModal','gameOverModal','synModal',
+                    'shopModal','useModal'];
   const lastAct = {};             // overlayId -> { sig, tick, ticks } 上一次操作的内容签名与时刻
   let drainGuard = false;
   let debtKey = '';
@@ -301,6 +302,14 @@
             if (no) no.click();
             break;
           }
+          case 'shopModal': {
+            // 有钱就随机买一件，没钱/买不了就离店
+            const buys = [...document.querySelectorAll('#shopList .si-buy:not([disabled])')];
+            if (buys.length && Math.random() < 0.7){ buys[Math.floor(Math.random() * buys.length)].click(); report.stats.buys++; }
+            else click('shopClose');
+            break;
+          }
+          case 'useModal': click('useClose'); break;
           case 'statsModal': click('statsClose'); break;
           case 'synModal': click('synClose'); break;
           case 'resumeModal': click('resumeNo'); break;
@@ -382,6 +391,9 @@
   }
 
   function finalize(reason){
+    try {
+      if (Game.itemsApi) report.stats.items = players.reduce((s2, _, pi) => s2 + Game.itemsApi.totalItems(pi), 0);
+    } catch(e){}
     if (done) return;
     done = true;
     clearInterval(timer);

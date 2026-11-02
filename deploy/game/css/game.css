@@ -213,6 +213,39 @@
     content:''; position:absolute; inset:-6px 0; border-radius:inherit;
   }
   #roundInfo { font-size:12px; color:rgba(51,49,44,.5); }
+  /* ---- 道具商店 ---- */
+  #shopModal .modal, #useModal .modal { width:min(430px,94vw); text-align:left; }
+  #shopModal .modal h3, #useModal .modal h3 { text-align:center; }
+  #shopDesc, #useDesc { text-align:center; font-size:12.5px; }
+  .shop-list { display:flex; flex-direction:column; gap:8px; margin:2px 0 16px; max-height:46vh; overflow-y:auto; }
+  .shop-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1.5px solid #E7E1D2;
+    border-radius:11px; background:#FFFDF7; }
+  .si-ico { font-size:20px; width:26px; text-align:center; flex:none; }
+  .si-main { flex:1; min-width:0; }
+  .si-name { font-size:13px; color:#3A3730; font-weight:600; display:flex; align-items:center; gap:6px; }
+  .si-have { font-size:10px; font-weight:400; color:#8B8678; background:#F2EEE3; border-radius:6px; padding:1px 5px; }
+  .si-desc { font-size:11px; color:#8B8678; line-height:1.5; margin-top:2px; }
+  .si-buy { flex:none; padding:6px 12px; font-size:12px !important; border-radius:8px; border:none;
+    background:var(--slate); color:#FBF8F2; cursor:pointer; }
+  .si-buy:disabled { background:#DFD9CB; color:#9C9789; cursor:default; }
+  .tgt { display:flex; align-items:center; gap:9px; width:100%; padding:7px 10px; border:1.5px solid #E7E1D2;
+    border-radius:10px; background:#FFFDF7; cursor:pointer; text-align:left; }
+  .tgt:hover { border-color:var(--slate); background:#FBF8F2; }
+  .tgt-d { flex:none; width:34px; text-align:center; font-size:11px; font-weight:700; color:#6E7C88;
+    background:#EFF1F3; border-radius:6px; padding:2px 0; }
+  .tgt-n { flex:1; font-size:12.5px; color:#3A3730; }
+  .tgt-t { flex:none; font-size:10.5px; color:#9C9789; }
+
+  /* ---- 玩家卡道具徽章 ---- */
+  .item-chips { display:inline-flex; gap:3px; margin-left:4px; vertical-align:middle; }
+  .item-chip { font-size:11px; line-height:1; padding:2px 4px; border-radius:6px; background:#F2EEE3;
+    cursor:pointer; user-select:none; }
+  .item-chip:hover { background:#E7E0CE; }
+
+  /* ---- 棋盘路障标记 ---- */
+  .block-mark { position:absolute; right:1px; bottom:1px; font-size:11px; line-height:1;
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.25)); pointer-events:none; }
+
   #weatherChip {
     font-size:11.5px; font-weight:700; color:#4A463B; cursor:default;
     background:rgba(255,255,255,.66); border:1px solid rgba(0,0,0,.07);

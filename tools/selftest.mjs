@@ -38,6 +38,8 @@ const CASES = [
   { name: '同屏3人·天气',    q: 'mode=hotseat&n=3&map=metro&mods=weather&seed=910' },
   { name: '经典·收租佬AI·2人', q: 'mode=ai&ai=1&map=classic&mods=synergy&persona=renter&seed=911' },
   { name: '地铁·圈地狂AI·4人', q: 'mode=ai&ai=3&map=metro&mods=weather&persona=tycoon&seed=912' },
+  { name: '经典·道具·全玩法', q: 'mode=ai&ai=3&map=classic&mods=synergy,weather,items&seed=913' },
+  { name: '同屏2人·道具',    q: 'mode=hotseat&n=2&map=mini&mods=items&seed=914' },
 ];
 
 const args = process.argv.slice(2);
@@ -112,7 +114,7 @@ for (const c of cases){
   console.log(`    回合 ${rep.round} · 状态变化 ${rep.turns} · 结束：${rep.endReason || '?'} · 点击 ${rep.stats.clicks} 次`);
   console.log(`    终局：${p}`);
   const landing = Object.entries(rep.stats.landing).map(([k, v]) => `${k}×${v}`).join(' ');
-  console.log(`    落格：${landing || '无'}　最高建筑等级：${rep.stats.maxLevel}　拍卖 ${rep.stats.auctions} 次 · 入狱 ${rep.stats.jails} 次 · 破产抉择 ${rep.stats.debts} 次`);
+  console.log(`    落格：${landing || '无'}　最高建筑等级：${rep.stats.maxLevel}　拍卖 ${rep.stats.auctions} 次 · 入狱 ${rep.stats.jails} 次 · 破产抉择 ${rep.stats.debts} 次 · 道具购入 ${rep.stats.buys} / 终局持有 ${rep.stats.items}`);
   if (!rep.finished) console.log(`    ⚠️ 本局未自然结束（${rep.endReason}），覆盖不完整`);
   if (rep.stall){
     const s = rep.stall;
