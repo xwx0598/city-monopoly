@@ -1,16 +1,26 @@
 @echo off
-title Monopoly LAN Server - port 8686
-echo ============================================
-echo   Monopoly LAN Server
-echo   Local:  http://localhost:8686
-echo   LAN:    http://[your-ip]:8686   (run ipconfig to find it)
-echo   Port:   8686  (bind 0.0.0.0)
-echo   Close this window to stop the server.
-echo ============================================
+title City Monopoly - Local Server
 cd /d "%~dp0"
+chcp 65001 >nul 2>nul
+
 where py >nul 2>nul
 if %errorlevel%==0 (
-  py -3 server.py
+  py -3 server.py %*
 ) else (
-  python server.py
+  where python >nul 2>nul
+  if %errorlevel%==0 (
+    python server.py %*
+  ) else (
+    echo.
+    echo   [!] Python 3 not found.
+    echo       Install it from https://www.python.org/downloads/
+    echo       Remember to tick "Add python.exe to PATH" during setup.
+    echo.
+    pause
+    exit /b 1
+  )
 )
+
+echo.
+echo   Server stopped. Press any key to close this window.
+pause >nul
