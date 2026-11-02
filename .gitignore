@@ -1,0 +1,16 @@
+# 临时截图（headless 验证用，不纳入版本库）
+.shots/
+
+# WorkBuddy 本地工作区数据（记忆、日志等）
+.workbuddy/
+
+# 系统 / 编辑器杂项
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+.vscode/
+.idea/
+
+# 依赖目录（本项目为纯静态页，目前用不到，留作保险）
+node_modules/

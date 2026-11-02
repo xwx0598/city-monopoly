@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>城市大富翁 · 游戏大厅</title>
+<link rel="stylesheet" href="../css/lobby.css?v=20261102b">
+</head>
+<body>
+<div class="hero">
+  <div class="dice-deco" aria-hidden="true">
+    <div class="die-wrap a"><div class="die3d"></div></div>
+    <div class="die-wrap b"><div class="die3d"></div></div>
+  </div>
+  <div class="logo"><svg class="ico" data-ic="crown" viewBox="-32 -32 64 64" style="width:32px;height:32px"></svg></div>
+  <h1>城市大富翁</h1>
+  <p>回合制棋盘经营 · 买地建房收租 · 本地存档 · 局域网多设备畅玩</p>
+</div>
+
+<div class="mapbar">
+  <span class="mapbar-label">本局地图</span>
+  <div class="map-opts" id="mapOpts">
+    <button data-map="classic" title="24 格 · 4 组地产 · 标准局">经典小城<small>24 格</small></button>
+    <button data-map="mini" title="20 格 · 4 组地产 · 节奏更快">迷你快棋<small>20 格</small></button>
+    <button data-map="metro" title="32 格 · 5 组地产 · 大局">繁华都会<small>32 格</small></button>
+    <button data-map="random" title="每局随机生成尺寸与地产组合">随机岛屿<small>20~32 格</small></button>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- 单机 vs AI -->
+  <div class="card">
+    <div class="top"></div>
+    <div class="icon"><svg class="ico" data-ic="crown" viewBox="-32 -32 64 64" style="width:30px;height:30px"></svg></div>
+    <h3>单机 vs AI</h3>
+    <p>自由设定 AI 数量（1~3 位）与逐项难度：买地、建房、对抗策略可混搭出自定义对手。</p>
+    <div class="acts"><a class="btn" id="aiSetupBtn" href="#" onclick="openAiSetup();return false;">开始对战</a></div>
+    <div class="saves" id="savesAi"></div>
+  </div>
+
+  <!-- 本地同屏 -->
+  <div class="card p2">
+    <div class="top"></div>
+    <div class="icon"><svg class="ico" data-ic="pawn" viewBox="-32 -32 64 64" style="width:28px;height:28px"></svg></div>
+    <h3>本地同屏对战</h3>
+    <p>2~4 人轮流操作同一台设备，手机平板上传着玩，最适合朋友围坐。</p>
+    <div class="hotseat-opts">
+      <a href="../../game/html/game.html?mode=hotseat&n=2&new=1" data-slot="hotseat2">2 人</a>
+      <a href="../../game/html/game.html?mode=hotseat&n=3&new=1" data-slot="hotseat3">3 人</a>
+      <a href="../../game/html/game.html?mode=hotseat&n=4&new=1" data-slot="hotseat4">4 人</a>
+    </div>
+    <div class="saves" id="savesHotseat"></div>
+  </div>
+
+  <!-- 玩法说明 -->
+  <a class="card p3" href="#" onclick="openRules();return false;">
+    <div class="top"></div>
+    <div class="icon"><svg class="ico" data-ic="card" viewBox="-32 -32 64 64" style="width:26px;height:26px"></svg></div>
+    <h3>玩法说明</h3>
+    <p>棋盘规则、租金推算、事件卡效果、房屋升级收益，30 秒看懂怎么赢。</p>
+    <div class="chips"><span>租金公式</span><span>房屋三级</span><span>事件卡</span></div>
+    <span class="btn">查看规则</span>
+  </a>
+
+  <!-- 在线联机（占位） -->
+  <div class="card p4">
+    <div class="top"></div>
+    <div class="icon"><svg class="ico" data-ic="award" viewBox="-32 -32 64 64" style="width:30px;height:30px"></svg></div>
+    <h3>在线联机对战</h3>
+    <p>与远程好友实时对战，需要房间服务器同步状态，正在规划中。</p>
+    <div class="chips dim"><span>房间匹配</span><span>实时同步</span><span>断线重连</span></div>
+    <span class="btn">开发中</span>
+  </div>
+</div>
+
+<div class="foot">
+  局域网访问：<b style="color:#FFD98A">http://172.31.17.226:8686</b><br>
+  <span style="color:rgba(255,253,247,.62)">存档保存在各设备的浏览器本地，每个模式独立存档、自动保存</span>
+</div>
+
+<!-- 玩法说明弹窗 -->
+<div class="overlay hidden" id="rulesModal">
+  <div class="modal">
+    <h3>玩法说明</h3>
+
+    <div class="upg">
+      <div class="upg-t">房屋三级升级</div>
+      <div class="upg-row">
+        <div class="upg-item"><svg class="ico" data-ic="house" viewBox="-32 -32 64 64"></svg><b>小屋</b><small>租金 ×1.6</small></div>
+        <span class="upg-arrow">→</span>
+        <div class="upg-item"><svg class="ico" data-ic="tower" viewBox="-32 -32 64 64"></svg><b>大楼</b><small>租金 ×2.6</small></div>
+        <span class="upg-arrow">→</span>
+        <div class="upg-item"><svg class="ico" data-ic="church" viewBox="-32 -32 64 64"></svg><b>地标</b><small>租金 ×4.1</small></div>
+      </div>
+      <div class="upg-note">
+        每盖一级租金 <b>×1.6</b>，造价为地价的一半；集齐同组 3 块（<b>垄断</b>）租金再 <b>×2</b>。<br>
+        以 ¥1000 地价为例：空地 ¥100 → 小屋 ¥160 → 大楼 ¥256 → 地标 ¥410。
+      </div>
+    </div>
+
+    <div class="rules-body">
+    <table>
+      <tr><td>目标</td><td>让对手全部破产，或 30 回合结束时总资产（现金＋地产＋房屋）最高。</td></tr>
+      <tr><td>模式</td><td><b>单机 vs AI</b>：你 1 人对战 1~3 位可调难度的 AI；<b>同屏对战</b>：2~4 位玩家轮流用同一设备操作。</td></tr>
+      <tr><td>地图</td><td>共 4 张：<b>迷你快棋</b> 20 格、<b>经典小城</b> 24 格、<b>繁华都会</b> 32 格（5 组地产），以及 <b>随机岛屿</b>——每局随机生成 20~32 格棋盘、随机地产分组与特殊格分布，每局都不一样。</td></tr>
+      <tr><td>回合</td><td>掷双骰前进 → 结算格子。掷出双数可再行动一次，但<b>连掷三次双数</b>将以超速罪名被押送监狱。</td></tr>
+      <tr><td>买地</td><td>无主地产可购买，之后他人经过需付租金。</td></tr>
+      <tr><td>租金</td><td>地价 ×10%；集齐同组地产 ×2；车站按持有数量收 ¥100/200/400。</td></tr>
+      <tr><td>组合</td><td>地块之间能擦出火花，达成后玩家卡上会挂徽章：<b>✦航线</b> 收齐全部车站 → 车站租金 ×2；<b>✦电网</b> 收齐全部电站 → 电力倍率 +4；<b>✦商业中心</b> 垄断某组且全满级 → 组内租金再 ×1.5；<b>✦基建大亨</b> 车站+电站全收 → 过起点工资 +¥100。</td></tr>
+      <tr><td>建设</td><td><b>均衡建设</b>：集齐同组地产后才能加盖房屋，且组内必须一起升——1-1-1 → 2-2-2 → 3-3-3（最高三级，见上图），拆房也须从最高的一栋拆（每级退 25% 地价）。</td></tr>
+      <tr><td>抵押</td><td>缺钱时可在「资产管理」把<b>无建筑的地块</b>（含车站/电站）<b>抵押给银行</b>：立即套现地价 50%；赎回需付抵押价 +10% 利息。<b>抵押中的地产免收租、组内不能加盖</b>，可照常交易（按 45% 估价）。半价卖地给银行仍可用作最后手段，但卖掉就再也回不来了。</td></tr>
+      <tr><td>电站</td><td>租金按落格玩家掷出的骰子点数计算：拥有一座 ×8、集齐两座 ×20（骰 9 点最贵 ¥180）。</td></tr>
+      <tr><td>赌场</td><td>落格即开：40% 中奖 +¥100、32% 输 ¥150（进奖池）、28% 平手——长期期望是亏的，小赌怡情。</td></tr>
+      <tr><td>交警</td><td>被查违规 → 直接押送监狱，<b>下一回合跳过</b>。</td></tr>
+      <tr><td>奖池</td><td>税款、赌场罚金、维修费全部进池；谁落在「免费停车」格就整池卷走。</td></tr>
+      <tr><td>机会</td><td>14 种事件卡：奖金、罚款、生日收礼、直通车、直达起点、维修费、入狱、后退 3 格、直飞车站、演出收门票等。</td></tr>
+      <tr><td>监狱</td><td>入狱后最多蹲 3 回合：可<b>缴保释金 ¥50</b> 立即出狱正常行动，或<b>掷骰碰双数</b>免费出狱并按点数前进；3 次都没掷出双数则强制缴保释金出狱。抽到「出狱许可证」可在入狱时免罪释放。正常路过监狱（探监）无事发生。</td></tr>
+      <tr><td>拍卖</td><td>有人放弃购买的地块会<b>立即进入全体拍卖</b>：从放弃者开始轮流出价或弃拍，价高者得（底价 ¥10）；全部弃拍则流拍、地块保持无主。AI 会按难度和垄断价值理性竞价。</td></tr>
+      <tr><td>交易</td><td>自己回合点「🤝 交易」可与任意玩家<b>互换无建筑的地块（含车站/电站）和现金</b>（带建筑的地需先拆卖）。凑齐垄断的地块双方都会开更高价，AI 按难度估价决定接受或拒绝。</td></tr>
+      <tr><td>起点</td><td>每次经过领工资 ¥200。</td></tr>
+      <tr><td>破产</td><td>现金付不清账单即出局：名下全部地产（连房屋，抵押状态一并移交）与剩余现金<b>移交债主</b>；因税款/罚金破产则地产回归无主。AI 手头紧会主动拆房、抵押、卖地自救。</td></tr>
+      <tr><td>资不抵债</td><td>付不起租金时可选择<b>变卖资产凑钱</b>或<b>宣告破产</b>；买地/升级时若剩余现金低于对手最高租金，会弹出<span style="color:#C0392B">红色风险警告</span>，玩家卡现金也会红色闪烁提示。现金不足时无法购买。</td></tr>
+      <tr><td>难度</td><td>单机可选 1~3 位 AI，难度支持整体预设，也可逐项混搭：<b>买地风格</b>（随手买 → 精打细算）、<b>建房风格</b>（从不盖房 → 精于升级）、<b>对抗策略</b>（困难会抢你差一块就凑齐的组）。</td></tr>
+      <tr><td>存档</td><td>每回合自动保存，随机地图的棋盘布局也一并存下；大厅有存档时会显示「继续存档」入口。</td></tr>
+    </table>
+    </div>
+    <button onclick="closeRules()">知道了</button>
+  </div>
+</div>
+
+<!-- 对局设置弹窗（单机 vs AI） -->
+<div class="overlay hidden" id="aiModal">
+  <div class="modal">
+    <h3>对局设置 · 单机 vs AI</h3>
+
+    <div class="setup-row" style="border-bottom:1px solid #F3F1EA">
+      <span class="setup-label">AI 对手数量<i>你 1 人 + AI 若干，同桌对战</i></span>
+      <div class="seg" id="segCount">
+        <button data-v="1">1 位</button><button data-v="2">2 位</button><button data-v="3">3 位</button>
+      </div>
+    </div>
+
+    <div class="setup-row">
+      <span class="setup-label">快速预设<i>一键设置下面所有项</i></span>
+      <div class="seg" id="segPreset">
+        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+      </div>
+    </div>
+
+    <div class="attr-t"><b>逐项调整</b>：三项可以混搭，组合出你想要的自定义对手</div>
+    <div class="setup-row">
+      <span class="setup-label">买地风格<i>随手就买，还是精打细算留现金</i></span>
+      <div class="seg" data-attr="buy">
+        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+      </div>
+    </div>
+    <div class="setup-row">
+      <span class="setup-label">建房风格<i>从不盖房，到精于升级收租</i></span>
+      <div class="seg" data-attr="build">
+        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+      </div>
+    </div>
+    <div class="setup-row">
+      <span class="setup-label">对抗策略<i>困难会抢你差一块就凑齐的组</i></span>
+      <div class="seg" data-attr="tactic">
+        <button data-v="easy">简单</button><button data-v="normal">普通</button><button data-v="hard">困难</button>
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="ghost" onclick="closeAiSetup()">取消</button>
+      <button class="primary" id="aiStartBtn" data-slot="ai">开始对局</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/icons.js"></script>
+<script src="../js/lobby.js?v=20261102b"></script>
+</body>
+</html>

@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>城市大富翁</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+  body {
+    min-height:100vh; color:#2C2C2A; overflow-x:hidden;
+    background:linear-gradient(180deg,#EEF5F1 0%,#F7F4EC 45%,#F7F4EC 100%);
+  }
+  /* ===== 布局 ===== */
+  .app { max-width:1180px; margin:0 auto; padding:16px 16px 40px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .brand .badge { width:38px; height:38px; border-radius:12px; background:#1D9E75; display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 4px 10px rgba(29,158,117,.28); }
+  .brand h1 { font-size:20px; letter-spacing:1px; }
+  .brand small { display:block; font-size:11px; color:#888780; font-weight:400; letter-spacing:0; margin-top:2px; }
+  .actions { display:flex; gap:8px; }
+  .btn-ghost { padding:7px 14px; font-size:13px; border:1px solid #C9C6BC; border-radius:10px; background:#fff; color:#444441; cursor:pointer; text-decoration:none; transition:.15s; }
+  .btn-ghost:hover { background:#F1EFE8; border-color:#9C998F; }
+
+  main { display:flex; gap:18px; align-items:flex-start; }
+  .stage { flex:0 0 auto; }
+  .sidebar { flex:1; min-width:260px; display:flex; flex-direction:column; gap:12px; }
+
+  /* ===== 棋盘 ===== */
+  #boardWrap { transform-origin:top left; }
+  #board {
+    position:relative; width:530px; height:530px; background:#FFFDF7;
+    border-radius:18px; box-shadow:0 10px 30px rgba(44,44,42,.10), inset 0 0 0 2px #E4E0D2;
+  }
+  .strip { position:absolute; display:flex; }
+  #rowTop { top:0; left:0; width:530px; height:90px; }
+  #rowBottom { bottom:0; left:0; width:440px; height:90px; flex-direction:row-reverse; }
+  #colRight { top:90px; right:0; width:90px; height:350px; flex-direction:column; }
+  #colLeft { top:90px; left:0; width:90px; height:350px; flex-direction:column-reverse; }
+
+  .tile {
+    position:relative; background:#fff; border:1px solid #E6E2D6; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transition:box-shadow .18s, transform .18s;
+  }
+  .tile.corner { background:#FBF8EF; }
+  #rowTop .tile { width:70px; height:90px; }
+  #rowTop .tile.corner { width:90px; height:90px; }
+  #rowBottom .tile { width:70px; height:90px; }
+  #rowBottom .tile.corner { width:90px; height:90px; }
+  #colRight .tile, #colLeft .tile { width:90px; height:70px; }
+  #colRight .tile.corner, #colLeft .tile.corner { width:90px; height:90px; }
+
+  .cbar { position:absolute; background:#B4B2A9; }
+  #rowTop .cbar { left:0; right:0; bottom:0; height:12px; }
+  #rowBottom .cbar { left:0; right:0; top:0; height:12px; }
+  #colRight .cbar { top:0; bottom:0; left:0; width:12px; }
+  #colLeft .cbar { top:0; bottom:0; right:0; width:12px; }
+
+  .tname { position:absolute; left:2px; right:2px; font-size:10.5px; color:#3B3A36; text-align:center; line-height:1.2; }
+  #rowTop .tname { top:5px; }
+  #rowBottom .tname { bottom:5px; }
+  #colRight .tname { left:22px; right:20px; top:50%; transform:translateY(-50%); font-size:10px; }
+  #colLeft .tname { left:20px; right:22px; top:50%; transform:translateY(-50%); font-size:10px; }
+  .tprice { position:absolute; font-size:9px; color:#A6A296; }
+  #rowTop .tprice { top:19px; left:0; right:0; text-align:center; }
+  #rowBottom .tprice { bottom:20px; left:0; right:0; text-align:center; }
+  #colRight .tprice, #colLeft .tprice { display:none; }
+  .cname { text-align:center; font-size:10px; line-height:1.35; color:#3B3A36; }
+  .mini { width:18px; height:18px; margin-top:2px; }
+  .temoji { font-size:17px; line-height:1; margin-top:2px; }
+  /* 侧列格子只有 90×50，图标会压住文字，直接隐藏只保留名称 */
+  #colRight .temoji, #colLeft .temoji { display:none; }
+  #colRight .mini { position:absolute; left:15px; top:50%; margin-top:-9px; margin-bottom:0; }
+  #colLeft .mini { position:absolute; right:15px; top:50%; margin-top:-9px; margin-bottom:0; }
+  .tile.corner { padding-bottom:22px; }
+
+  .owner-dot { position:absolute; width:9px; height:9px; border-radius:50%; box-shadow:0 0 0 1.5px #fff; }
+  #rowTop .owner-dot { top:4px; right:4px; }
+  #rowBottom .owner-dot { bottom:4px; right:4px; }
+  #colRight .owner-dot { bottom:4px; left:5px; }
+  #colLeft .owner-dot { top:4px; right:5px; }
+
+  .struct { position:absolute; width:24px; height:24px; opacity:0; transform:scale(.4); transition:opacity .3s, transform .3s; }
+  .struct.on { opacity:1; transform:scale(1); }
+  #rowTop .struct { top:30px; left:50%; margin-left:-12px; }
+  #rowBottom .struct { bottom:30px; left:50%; margin-left:-12px; }
+  #colRight .struct { right:4px; top:50%; margin-top:-12px; }
+  #colLeft .struct { right:4px; top:50%; margin-top:-12px; }
+
+  .tile.active { box-shadow:inset 0 0 0 3px #EF9F27; z-index:3; }
+  .tile.flash { animation:flashTile .7s ease; }
+  @keyframes flashTile { 0%{background:#FFF6DA} 50%{background:#FFE9B0} 100%{background:#fff} }
+
+  /* ===== 中央区 ===== */
+  #center { position:absolute; top:90px; left:90px; width:350px; height:350px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+  .center-title { font-size:12px; letter-spacing:3px; color:#B0ADA2; }
+  #diceArea { display:flex; gap:16px; perspective:600px; }
+  .die {
+    width:54px; height:54px; border-radius:12px; background:#fff; box-shadow:0 4px 12px rgba(44,44,42,.14), inset 0 -3px 0 #EDE9DC;
+    display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); padding:8px; gap:2px;
+    transition:transform .2s;
+  }
+  .die span { border-radius:50%; background:transparent; }
+  .die span.on { background:#3B3A36; box-shadow:inset 0 -1px 1px rgba(255,255,255,.45); }
+  .die.rolling { animation:tumble .55s cubic-bezier(.3,.6,.4,1); }
+  @keyframes tumble {
+    0%{ transform:rotate3d(1,1,0,0deg) scale(1) }
+    35%{ transform:rotate3d(1,1,.3,190deg) scale(1.12) translateY(-6px) }
+    70%{ transform:rotate3d(1,.6,.2,330deg) scale(1.04) }
+    100%{ transform:rotate3d(0,0,0,0deg) scale(1) }
+  }
+  #turnInfo { font-size:15px; font-weight:500; }
+  .btn-main {
+    padding:11px 40px; font-size:16px; border:none; border-radius:12px; color:#fff; cursor:pointer;
+    background:linear-gradient(180deg,#27B084,#17926C); box-shadow:0 5px 14px rgba(29,158,117,.32); transition:.15s;
+  }
+  .btn-main:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 8px 18px rgba(29,158,117,.38); }
+  .btn-main:disabled { background:#C9C6BC; box-shadow:none; cursor:default; }
+  .btn-build { padding:7px 18px; font-size:13px; border-radius:10px; border:1px solid #D9C08A; background:#FFF8E8; color:#854F0B; cursor:pointer; }
+  .btn-build:disabled { opacity:.45; cursor:default; }
+  #roundInfo { font-size:12px; color:#9A978C; }
+
+  /* ===== 棋子 ===== */
+  #tokenLayer { position:absolute; inset:0; pointer-events:none; z-index:6; }
+  .token {
+    position:absolute; width:22px; height:22px; transition:left .16s ease, top .16s ease;
+  }
+  .token svg { display:block; width:22px; height:22px; }
+  .token.hop { animation:hop .3s ease; }
+  @keyframes hop { 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-8px) } }
+
+  /* ===== 玩家卡 ===== */
+  #playersBar { display:flex; flex-wrap:wrap; gap:10px; }
+  .pcard {
+    flex:1 1 120px; position:relative; background:#fff; border:2px solid #E6E2D6; border-radius:14px;
+    padding:10px 12px; transition:.2s; overflow:hidden;
+  }
+  .pcard.current { border-color:#1D9E75; box-shadow:0 6px 16px rgba(29,158,117,.16); }
+  .pcard.current::after { content:""; position:absolute; inset:0; border-radius:12px; box-shadow:0 0 0 0 rgba(29,158,117,.35); animation:pulse 1.8s infinite; }
+  @keyframes pulse { 0%{ box-shadow:0 0 0 0 rgba(29,158,117,.35) } 70%{ box-shadow:0 0 0 10px rgba(29,158,117,0) } 100%{ box-shadow:0 0 0 0 rgba(29,158,117,0) } }
+  .pcard.broke { opacity:.4; filter:grayscale(1); }
+  .pname { font-size:13px; font-weight:500; display:flex; align-items:center; gap:6px; }
+  .diff-tag { font-size:10px; font-weight:600; padding:1px 7px; border-radius:7px; line-height:1.5; }
+  .pdot { width:11px; height:11px; border-radius:50%; }
+  .pmoney { font-size:19px; font-weight:700; color:#0F6E56; margin-top:3px; display:flex; align-items:center; gap:3px; }
+  .pmoney .ico { width:15px; height:15px; color:#0F6E56; }
+  .pcombos { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+  .pcombos:empty { display:none; }
+  .combo-tag { font-size:10px; font-weight:600; color:#fff; padding:1px 7px; border-radius:9px; letter-spacing:.5px; }
+  .pprops { font-size:10px; color:#9A978C; margin-top:3px; line-height:1.5; max-height:30px; overflow:hidden; }
+
+  .float-money { font-size:14px; font-weight:700; pointer-events:none; animation:floatUp 1.1s ease forwards; z-index:80; }
+  @keyframes floatUp { 0%{ opacity:0; transform:translateY(6px) } 20%{ opacity:1 } 100%{ opacity:0; transform:translateY(-22px) } }
+
+  /* ===== 日志 ===== */
+  .panel { background:#fff; border:2px solid #E6E2D6; border-radius:14px; padding:10px 12px; }
+  .panel h4 { font-size:12px; color:#9A978C; font-weight:500; margin-bottom:6px; letter-spacing:1px; }
+  #log { height:200px; overflow-y:auto; font-size:12px; line-height:1.75; color:#4B4A45; padding-right:4px; }
+  #log div { animation:slideIn .25s ease; }
+  @keyframes slideIn { from{ opacity:0; transform:translateX(-6px) } to{ opacity:1; transform:none } }
+  #log .good { color:#0F6E56; } #log .bad { color:#A32D2D; } #log .card { color:#854F0B; }
+
+  .ico {
+    display:inline-block; background-color:currentColor;
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+    -webkit-mask-position:center; mask-position:center;
+    -webkit-mask-size:contain; mask-size:contain;
+  }
+  .ic-house   { -webkit-mask-image:url(assets/structure_house.svg);   mask-image:url(assets/structure_house.svg); }
+  .ic-tower   { -webkit-mask-image:url(assets/structure_tower.svg);   mask-image:url(assets/structure_tower.svg); }
+  .ic-church  { -webkit-mask-image:url(assets/structure_church.svg);  mask-image:url(assets/structure_church.svg); }
+  .ic-pawn    { -webkit-mask-image:url(assets/pawn.svg);              mask-image:url(assets/pawn.svg); }
+  .ic-dollar  { -webkit-mask-image:url(assets/dollar.svg);            mask-image:url(assets/dollar.svg); }
+  .ic-award   { -webkit-mask-image:url(assets/award.svg);             mask-image:url(assets/award.svg); }
+  .ic-card    { -webkit-mask-image:url(assets/card.svg);              mask-image:url(assets/card.svg); }
+  .ic-lock    { -webkit-mask-image:url(assets/lock_closed.svg);       mask-image:url(assets/lock_closed.svg); }
+  .ic-flag    { -webkit-mask-image:url(assets/flag_square.svg);       mask-image:url(assets/flag_square.svg); }
+  .ic-crown   { -webkit-mask-image:url(assets/crown_a.svg);           mask-image:url(assets/crown_a.svg); }
+
+  /* ===== 弹窗 ===== */
+  .overlay { position:fixed; inset:0; background:rgba(38,38,34,.5); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; backdrop-filter:blur(2px); }
+  .modal { background:#fff; border-radius:18px; padding:24px; width:min(360px,92vw); text-align:center; animation:popIn .28s cubic-bezier(.2,1.3,.5,1); max-height:82vh; overflow-y:auto; }
+  @keyframes popIn { from{ opacity:0; transform:scale(.9) translateY(8px) } to{ opacity:1; transform:none } }
+  .modal h3 { font-size:17px; margin-bottom:6px; }
+  .modal p { font-size:13px; color:#6B6961; margin-bottom:16px; line-height:1.65; }
+  .btns { display:flex; gap:10px; justify-content:center; }
+  .modal button { padding:9px 22px; border:none; border-radius:10px; font-size:14px; cursor:pointer; }
+  .btn-yes { background:#1D9E75; color:#fff; }
+  .btn-no { background:#E6E2D6; color:#4B4A45; }
+  .hidden { display:none; }
+
+  #cardModal .modal { border-top:6px solid #EF9F27; }
+  #cardModal .modal.flip { animation:cardFlip .5s ease; }
+  @keyframes cardFlip { 0%{ transform:rotateY(90deg) scale(.9) } 60%{ transform:rotateY(-8deg) scale(1.02) } 100%{ transform:rotateY(0) scale(1) } }
+  .card-icon { width:52px; height:52px; margin:0 auto 10px; color:#EF9F27; }
+
+  .build-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 0; border-bottom:1px solid #F1EFE8; text-align:left; }
+  .build-row .meta { font-size:12px; color:#6B6961; line-height:1.5; }
+  .build-row .meta b { color:#3B3A36; font-size:13px; }
+  .build-row button { padding:6px 14px; font-size:12px; border-radius:8px; border:none; background:#1D9E75; color:#fff; cursor:pointer; white-space:nowrap; }
+  .build-row button:disabled { background:#DDD9CC; color:#9A978C; cursor:default; }
+  .build-row button.sell { background:#E8764A; }
+
+  #gameOverModal .modal { width:min(400px,92vw); }
+  #gameOverModal h3 { font-size:22px; margin-bottom:10px; }
+  .confetti { position:fixed; top:-10px; width:8px; height:14px; border-radius:2px; animation:fall linear forwards; z-index:60; pointer-events:none; }
+  @keyframes fall { to { transform:translateY(105vh) rotate(540deg); opacity:.2 } }
+
+  @media (max-width: 900px){
+    main { flex-direction:column; align-items:center; }
+    .sidebar { width:100%; }
+    #log { height:120px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="badge"><i class="ico ic-tower" style="width:22px;height:22px"></i></div>
+      <div>
+        <h1>城市大富翁</h1>
+        <small id="modeLabel">单机 vs AI</small>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn-ghost" href="index.html">🏠 返回大厅</a>
+      <button class="btn-ghost" id="newGameBtn">🔄 新对局</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="stage">
+      <div id="boardWrap">
+        <div id="board">
+          <div class="strip" id="rowTop"></div>
+          <div class="strip" id="colRight"></div>
+          <div class="strip" id="rowBottom"></div>
+          <div class="strip" id="colLeft"></div>
+          <div id="center">
+            <div class="center-title">城 市 大 富 翁</div>
+            <div id="diceArea">
+              <div class="die" id="die1"></div>
+              <div class="die" id="die2"></div>
+            </div>
+            <div id="turnInfo">轮到你行动</div>
+            <button id="rollBtn" class="btn-main">掷骰子</button>
+            <button id="buildBtn" class="btn-build">🏗️ 建设房屋</button>
+            <div id="roundInfo">第 1 / 30 回合</div>
+          </div>
+          <div id="tokenLayer"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <div id="playersBar"></div>
+      <div class="panel">
+        <h4>行动日志</h4>
+        <div id="log"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="overlay hidden" id="buyModal">
+  <div class="modal">
+    <h3 id="buyTitle">购买地产？</h3>
+    <p id="buyDesc"></p>
+    <div class="btns">
+      <button class="btn-yes" id="buyYes">买下它</button>
+      <button class="btn-no" id="buyNo">放弃</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="cardModal">
+  <div class="modal" id="cardBox">
+    <div class="card-icon"><i class="ico ic-card" style="width:52px;height:52px"></i></div>
+    <h3>机会卡</h3>
+    <p id="cardDesc"></p>
+    <div class="btns"><button class="btn-yes" id="cardOk">好的</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="noticeModal">
+  <div class="modal" id="noticeBox">
+    <h3 id="noticeTitle">提示</h3>
+    <p id="noticeDesc"></p>
+    <div class="btns"><button class="btn-yes" id="noticeOk">知道了</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="buildModal">
+  <div class="modal" style="width:min(420px,94vw)">
+    <h3>🏗️ 资产管理</h3>
+    <p style="margin-bottom:8px">升级后租金按 ×1.6 递增，最高三级；缺钱时可卖房（每级退 25% 地价）或半价卖地。</p>
+    <p style="margin-bottom:8px;font-size:13px;font-weight:600" id="modalCash"></p>
+    <div id="buildList"></div>
+    <div class="btns" style="margin-top:16px"><button class="btn-no" id="buildClose">完成</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="resumeModal">
+  <div class="modal">
+    <h3>📂 发现未完成的对局</h3>
+    <p id="resumeDesc"></p>
+    <div class="btns">
+      <button class="btn-yes" id="resumeYes">继续对局</button>
+      <button class="btn-no" id="resumeNo">重新开始</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="gameOverModal">
+  <div class="modal">
+    <h3 id="goTitle">游戏结束</h3>
+    <p id="goDesc"></p>
+    <div class="btns"><button class="btn-yes" id="restartBtn">再来一局</button></div>
+  </div>
+</div>
+
+<script>
+// ================= 基础数据 =================
+// TILES 由「地图系统」在启动时按所选地图生成（见下方 地图系统 区块）
+const GROUP_COLORS = { A:'#8B7AE0', B:'#35B58C', C:'#E8764A', D:'#3E8FDD', E:'#C7519E',
+  station:'#6B6961', utility:'#E8A13C', chance:'#EF9F27', tax:'#E24B4A', bonus:'#BA7517',
+  casino:'#C2477F', police:'#4A6FA5' };
+const START_MONEY = 1500, SALARY = 200, MAX_ROUNDS = 30;
+const MAX_LEVEL = 3;
+const LEVEL_ICON = [null, 'ic-house', 'ic-tower', 'ic-church'];
+const LEVEL_NAME = ['空地', '小屋', '大楼', '地标'];
+
+const CHANCE_CARDS = [
+  { text:'中了社区彩票，获得 ¥300！', money:300 },
+  { text:'股票大跌，损失 ¥200。', money:-200 },
+  { text:'参加技能培训，缴纳学费 ¥150。', money:-150 },
+  { text:'银行发放利息，获得 ¥100。', money:100 },
+  { text:'今天你生日，每位玩家送你 ¥50！', money:0, effect:'birthday' },
+  { text:'搭乘直通车，前进 3 格！', money:0, effect:'move3' },
+  { text:'打车直达起点，领取工资 ¥200。', money:0, effect:'toStart' },
+  { text:'台风过境，每栋建筑支付维修费 ¥40。', money:0, effect:'repair' },
+  { text:'酒后驾驶被查，立即移入监狱！', money:0, effect:'toJail' },
+  { text:'走错了路，后退 3 格。', money:0, effect:'back3' },
+  { text:'赶飞机！立即前往最近的车站。', money:0, effect:'toStation' },
+  { text:'街头演出大受欢迎，每位玩家付你 ¥40！', money:0, effect:'show' },
+  { text:'双十一退款到账，获得 ¥120。', money:120 },
+  { text:'手机摔碎了，维修花费 ¥180。', money:-180 },
+];
+
+// ================= 模式与玩家 =================
+const QS = new URLSearchParams(location.search);
+const GAME_MODE = QS.get('mode') === 'hotseat' ? 'hotseat' : 'ai';
+const HOTSEAT_N = Math.min(4, Math.max(2, parseInt(QS.get('n')) || 2));
+const PLAYER_COLORS = ['#1D9E75', '#D4537E', '#3E8FDD', '#EF9F27'];
+
+// AI 难度按属性拆分，可逐项混搭；整体统一时显示对应档位，否则显示“自定义”
+const DIFF_LEVELS = ['easy', 'normal', 'hard'];
+const AI_DIFF_NAME = { easy: '简单', normal: '普通', hard: '困难' };
+const AI_DIFF_DESC = {
+  easy:   '随手买地、从不盖房',
+  normal: '稳健扩张，有余钱就盖房',
+  hard:   '算回报、抢垄断、阻击对手',
+};
+const DIFF_TAG_BG = { easy: '#E9F6EF', normal: '#EAF3FB', hard: '#FBEAEA', custom: '#F3F1EA' };
+const DIFF_TAG_FG = { easy: '#0F6E56', normal: '#2E7DBE', hard: '#B24A4A', custom: '#8C897E' };
+const diffQS = k => DIFF_LEVELS.includes(QS.get(k)) ? QS.get(k) : 'normal';
+const AI_ATTR = GAME_MODE === 'ai' ? { buy: diffQS('buy'), build: diffQS('build'), tactic: diffQS('tactic') } : null;
+const AI_ATTR_LABEL = { buy: '买地', build: '建房', tactic: '策略' };
+function aiOverall(){
+  const v = [AI_ATTR.buy, AI_ATTR.build, AI_ATTR.tactic];
+  return v.every(x => x === v[0]) ? v[0] : 'custom';
+}
+
+const AI_COUNT = GAME_MODE === 'ai' ? Math.min(3, Math.max(1, parseInt(QS.get('ai')) || 1)) : 0;
+const AI_NAMES = ['AI 阿豪', 'AI 小柔', 'AI 老周'];
+
+const players = [];
+if (GAME_MODE === 'ai'){
+  players.push({ name:'你', color:PLAYER_COLORS[0], money:START_MONEY, pos:0, props:[], bankrupt:false, skip:0, isAI:false });
+  for (let k = 0; k < AI_COUNT; k++){
+    players.push({ name:AI_NAMES[k], color:PLAYER_COLORS[(k + 1) % 4], money:START_MONEY, pos:0, props:[], bankrupt:false, skip:0, isAI:true });
+  }
+} else {
+  for (let k = 0; k < HOTSEAT_N; k++){
+    players.push({ name:`玩家 ${k+1}`, color:PLAYER_COLORS[k], money:START_MONEY, pos:0, props:[], bankrupt:false, skip:0, isAI:false });
+  }
+}
+
+let tileOwner = {};
+let tileLevel = {};
+let turn = 0, round = 1, gameOver = false, busy = false;
+let pool = 0;              // 奖池：税款与赌场罚金入池，免费停车格卷走
+let lastRoll = 7;          // 最近一次骰子总点（电站租金用）
+let doubleStreak = 0;      // 连续掷出双数的次数（三连入狱）
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $ = id => document.getElementById(id);
+
+// ================= 存档 =================
+const SAVE_KEY = 'monopoly_save_v2_' + (GAME_MODE === 'ai' ? 'ai' : 'hotseat' + HOTSEAT_N);
+
+function saveGame(){
+  if (gameOver) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, mode: GAME_MODE, savedAt: Date.now(), round, turn,
+      ...(GAME_MODE === 'ai' ? { attrs: { ...AI_ATTR }, ai: AI_COUNT } : {}),
+      players: players.map(p => ({ money:p.money, pos:p.pos, props:[...p.props], bankrupt:p.bankrupt, skip:p.skip || 0 })),
+      tileOwner: { ...tileOwner },
+      levels: { ...tileLevel },
+      pool,
+      map: { id: MAP.id, name: MAP.name, tiles: MAP.tiles },
+    }));
+  } catch(e){}
+}
+function loadSave(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (d.v !== 1 || d.mode !== GAME_MODE || !Array.isArray(d.players) || d.players.length !== players.length) return null;
+    return d;
+  } catch(e){ return null; }
+}
+function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
+
+// ================= 地图系统 =================
+// 棋盘为正方形，四个角固定为 起点/监狱/免费停车(奖池)/奖励格，边数可变。
+const BOARD_PX = 530, CORNER_PX = 90;
+let MAP = null, TILES = [], TOTAL = 24, EDGE = 5, EDGE_W = 70, CORNER_IDX = [0, 6, 12, 18];
+
+const PROP_NAMES = ['樱花大道','甜心小巷','阳光公寓','码头仓库','海风旅馆','灯塔广场','中心百货','天际大厦','金融街','科技园','电视塔','王朝酒店','翡翠湾','月光湾','梧桐街区','云顶花园','琥珀庄园','风车小镇','玫瑰大道','银滩别墅','青石板巷','星光码头','凤凰城','紫藤花苑'];
+const STATION_NAMES = ['中央车站','地铁2号线','机场快线','港口码头'];
+const GROUP_LETTERS = ['A','B','C','D','E'];
+
+const MAP_PRESETS = {
+  mini: { id:'mini', name:'迷你快棋', desc:'20 格 · 4 组地产 · 15 分局',
+    tiles: [
+      { type:'go',      name:'起点' },
+      { type:'prop',    name:'樱花大道', group:'A', price:600 },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'甜心小巷', group:'A', price:650 },
+      { type:'station', name:'中央车站', price:700 },
+      { type:'jail',    name:'监狱' },
+      { type:'prop',    name:'码头仓库', group:'B', price:800 },
+      { type:'tax',     name:'税收' },
+      { type:'utility', name:'电力公司', price:700 },
+      { type:'prop',    name:'海风旅馆', group:'B', price:850 },
+      { type:'parking', name:'免费停车' },
+      { type:'prop',    name:'中心百货', group:'C', price:1000 },
+      { type:'casino',  name:'幸运赌场' },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'金融街', group:'C', price:1050 },
+      { type:'bonus',   name:'奖励格' },
+      { type:'prop',    name:'科技园', group:'D', price:1200 },
+      { type:'police',  name:'交警临检' },
+      { type:'prop',    name:'电视塔', group:'D', price:1250 },
+      { type:'chance',  name:'机会' },
+    ] },
+  classic: { id:'classic', name:'经典小城', desc:'24 格 · 4 组地产 · 标准局',
+    tiles: [
+      { type:'go',      name:'起点' },
+      { type:'prop',    name:'樱花大道', group:'A', price:600 },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'甜心小巷', group:'A', price:600 },
+      { type:'station', name:'中央车站', price:800 },
+      { type:'prop',    name:'阳光公寓', group:'A', price:700 },
+      { type:'jail',    name:'监狱' },
+      { type:'prop',    name:'码头仓库', group:'B', price:800 },
+      { type:'tax',     name:'税收' },
+      { type:'prop',    name:'海风旅馆', group:'B', price:800 },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'灯塔广场', group:'B', price:900 },
+      { type:'parking', name:'免费停车' },
+      { type:'prop',    name:'中心百货', group:'C', price:1000 },
+      { type:'station', name:'地铁2号线', price:800 },
+      { type:'prop',    name:'天际大厦', group:'C', price:1000 },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'金融街', group:'C', price:1100 },
+      { type:'bonus',   name:'奖励格' },
+      { type:'prop',    name:'科技园', group:'D', price:1200 },
+      { type:'tax',     name:'税收' },
+      { type:'prop',    name:'电视塔', group:'D', price:1200 },
+      { type:'station', name:'机场快线', price:800 },
+      { type:'prop',    name:'王朝酒店', group:'D', price:1400 },
+    ] },
+  metro: { id:'metro', name:'繁华都会', desc:'32 格 · 5 组地产 · 大局',
+    tiles: [
+      { type:'go',      name:'起点' },
+      { type:'prop',    name:'樱花大道', group:'A', price:600 },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'甜心小巷', group:'A', price:650 },
+      { type:'station', name:'中央车站', price:800 },
+      { type:'prop',    name:'阳光公寓', group:'A', price:700 },
+      { type:'utility', name:'电力公司', price:750 },
+      { type:'tax',     name:'税收' },
+      { type:'jail',    name:'监狱' },
+      { type:'prop',    name:'码头仓库', group:'B', price:800 },
+      { type:'prop',    name:'海风旅馆', group:'B', price:800 },
+      { type:'station', name:'地铁2号线', price:800 },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'灯塔广场', group:'B', price:900 },
+      { type:'utility', name:'自来水厂', price:750 },
+      { type:'casino',  name:'幸运赌场' },
+      { type:'parking', name:'免费停车' },
+      { type:'prop',    name:'中心百货', group:'C', price:1000 },
+      { type:'station', name:'机场快线', price:800 },
+      { type:'prop',    name:'天际大厦', group:'C', price:1050 },
+      { type:'police',  name:'交警临检' },
+      { type:'prop',    name:'金融街', group:'C', price:1100 },
+      { type:'tax',     name:'税收' },
+      { type:'chance',  name:'机会' },
+      { type:'bonus',   name:'奖励格' },
+      { type:'prop',    name:'科技园', group:'D', price:1200 },
+      { type:'chance',  name:'机会' },
+      { type:'prop',    name:'电视塔', group:'D', price:1250 },
+      { type:'station', name:'港口码头', price:800 },
+      { type:'prop',    name:'王朝酒店', group:'D', price:1300 },
+      { type:'prop',    name:'紫藤花苑', group:'E', price:1400 },
+      { type:'prop',    name:'云顶花园', group:'E', price:1400 },
+    ] },
+};
+
+function shuffleArr(a){
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// 随机地图：随机边数(20~32格) + 随机地产分组 + 随机特殊格分布；同组地产保持相邻
+function genRandomMap(){
+  const edge = [4, 5, 6, 7][Math.floor(Math.random() * 4)];
+  const total = 4 * (edge + 1);
+  const tiles = new Array(total).fill(null);
+  const cornerIdx = [0, edge + 1, 2 * (edge + 1), 3 * (edge + 1)];
+  cornerIdx.forEach((ci, k) => {
+    tiles[ci] = [{ type:'go', name:'起点' }, { type:'jail', name:'监狱' },
+                 { type:'parking', name:'免费停车' }, { type:'bonus', name:'奖励格' }][k];
+  });
+
+  // 特殊格数量随地图规模伸缩
+  const specials = [];
+  const nChance = Math.max(3, Math.round(total * 0.13));
+  const nTax    = total >= 24 ? 2 : 1;
+  const nSta    = total >= 28 ? 4 : (total >= 24 ? 3 : 2);
+  const nUtil   = total >= 28 ? 2 : 1;
+  const nCasino = total >= 24 ? 1 : (Math.random() < 0.5 ? 1 : 0);
+  const nPolice = total >= 28 ? 1 : (Math.random() < 0.4 ? 1 : 0);
+  for (let k = 0; k < nChance; k++) specials.push({ type:'chance', name:'机会' });
+  for (let k = 0; k < nTax; k++)    specials.push({ type:'tax', name:'税收' });
+  for (let k = 0; k < nCasino; k++) specials.push({ type:'casino', name:'幸运赌场' });
+  for (let k = 0; k < nPolice; k++) specials.push({ type:'police', name:'交警临检' });
+  shuffleArr(STATION_NAMES.slice()).slice(0, nSta)
+    .forEach(n => specials.push({ type:'station', name:n, price:700 + 100 * Math.floor(Math.random() * 3) }));
+  shuffleArr(['电力公司','自来水厂']).slice(0, nUtil)
+    .forEach(n => specials.push({ type:'utility', name:n, price:700 }));
+
+  // 剩余格子全部给地产，按 2~3 块一组连续排布
+  const nProps = total - 4 - specials.length;
+  const sizes = [];
+  let g3 = Math.floor(nProps / 3), rem = nProps % 3;
+  if (rem === 1) g3--;                      // 余 1 时拆成 3,3,...,2,2
+  for (let k = 0; k < g3; k++) sizes.push(3);
+  if (rem === 2) sizes.push(2);             // 余 2 时补一个 2 块组
+  if (rem === 1) sizes.push(2, 2);          // 余 1 时补两个 2 块组
+  const names = shuffleArr(PROP_NAMES.slice());
+  const seq = [];
+  let ni = 0;
+  sizes.forEach((sz, gi) => {
+    const group = GROUP_LETTERS[gi % GROUP_LETTERS.length];
+    const base = 600 + gi * 200;
+    for (let k = 0; k < sz; k++){
+      seq.push({ type:'prop', name:names[ni++], group, price: base + k * 50 });
+    }
+  });
+  // 地产组保持连续，特殊格随机插在组与组之间的缝隙里
+  const finalSeq = [];
+  let propIdx = 0, spIdx = 0;
+  const spShuffled = shuffleArr(specials.slice());
+  const totalInserts = spShuffled.length;
+  // 地产共 nProps 块，特殊格插在地产块之间的缝隙里
+  while (propIdx < seq.length || spIdx < totalInserts){
+    // 放一个地产组（连续 sz 块）
+    if (propIdx < seq.length){
+      const t = seq[propIdx];
+      const grpSize = sizes[GROUP_LETTERS.indexOf(t.group)] || 3;
+      let placed = 0;
+      while (placed < grpSize && propIdx < seq.length && seq[propIdx].group === t.group){
+        finalSeq.push(seq[propIdx++]); placed++;
+      }
+    }
+    // 缝隙里插 1~2 个特殊格
+    let ins = 1 + (Math.random() < 0.4 ? 1 : 0);
+    while (ins-- > 0 && spIdx < totalInserts) finalSeq.push(spShuffled[spIdx++]);
+  }
+  // 校验：长度一致则采用，否则退回预设经典
+  if (finalSeq.length === total - 4){
+    let j = 0;
+    for (let i = 0; i < total; i++){
+      if (cornerIdx.includes(i)) continue;
+      tiles[i] = finalSeq[j++];
+    }
+    return { id:'random', name:'随机岛屿', tiles };
+  }
+  return { ...MAP_PRESETS.classic };
+}
+
+function applyMap(m){
+  MAP = m;
+  TILES = m.tiles;
+  TOTAL = TILES.length;
+  EDGE = TOTAL / 4 - 1;
+  EDGE_W = (BOARD_PX - 2 * CORNER_PX) / EDGE;
+  CORNER_IDX = [0, EDGE + 1, 2 * (EDGE + 1), 3 * (EDGE + 1)];
+}
+
+// 启动时决定用哪张地图：存档里的地图 > URL 参数 > 默认经典
+if (QS.get('new') === '1') clearSave();
+const bootSave = loadSave();
+const mapQS = QS.get('map');
+if (bootSave && bootSave.map && Array.isArray(bootSave.map.tiles)){
+  applyMap({ id: bootSave.map.id || 'random', name: bootSave.map.name || '随机岛屿', tiles: bootSave.map.tiles });
+} else if (mapQS === 'random'){
+  applyMap(genRandomMap());
+} else {
+  applyMap(MAP_PRESETS[mapQS] || MAP_PRESETS.classic);
+}
+
+// ================= 棋盘渲染 =================
+function tileColor(t){ return t.type === 'prop' ? GROUP_COLORS[t.group] : (GROUP_COLORS[t.type] || '#B4B2A9'); }
+
+function tileRect(i){
+  const B = BOARD_PX, C = CORNER_PX, e = EDGE_W;
+  if (i === 0) return { x:0, y:0, w:C, h:C };
+  if (i === CORNER_IDX[1]) return { x:B-C, y:0, w:C, h:C };
+  if (i === CORNER_IDX[2]) return { x:B-C, y:B-C, w:C, h:C };
+  if (i === CORNER_IDX[3]) return { x:0, y:B-C, w:C, h:C };
+  if (i < CORNER_IDX[1]) return { x:C + (i-1)*e, y:0, w:e, h:C };
+  if (i < CORNER_IDX[2]) return { x:B-C, y:C + (i-CORNER_IDX[1]-1)*e, w:C, h:e };
+  if (i < CORNER_IDX[3]) return { x:C + (CORNER_IDX[3]-1-i)*e, y:B-C, w:e, h:C };
+  return { x:0, y:C + (TOTAL-1-i)*e, w:C, h:e };
+}
+
+const TILE_ICONS = {
+  chance: ['ic-card',  '#C98C2A'],
+  tax:    ['ic-dollar','#B24A4A'],
+};
+
+function buildBoard(){
+  const [c1, c2, c3] = [CORNER_IDX[1], CORNER_IDX[2], CORNER_IDX[3]];
+  const stripOf = i => (i <= c1 ? 'rowTop' : i <= c2 ? 'colRight' : i <= c3 ? 'rowBottom' : 'colLeft');
+  TILES.forEach((t, i) => {
+    const isCorner = CORNER_IDX.includes(i);
+    const horiz = stripOf(i) === 'rowTop' || stripOf(i) === 'rowBottom';
+    const el = document.createElement('div');
+    el.className = 'tile' + (isCorner ? ' corner' : '');
+    el.id = 'tile' + i;
+    el.style.width  = (isCorner ? CORNER_PX : (horiz ? EDGE_W : CORNER_PX)) + 'px';
+    el.style.height = (isCorner ? CORNER_PX : (horiz ? CORNER_PX : EDGE_W)) + 'px';
+
+    if (t.type === 'prop' || t.type === 'station' || t.type === 'utility'){
+      el.innerHTML = `
+        <div class="cbar" style="background:${tileColor(t)}"></div>
+        <div class="tname">${t.name}</div>
+        ${t.price ? `<div class="tprice">¥${t.price}</div>` : ''}
+        ${t.type === 'prop' ? '<i class="ico struct" id="struct'+i+'"></i>' : ''}`;
+    } else if (t.type === 'chance' || t.type === 'tax'){
+      const [cls, col] = TILE_ICONS[t.type];
+      el.innerHTML = `<div class="cbar" style="background:${GROUP_COLORS[t.type]}"></div>
+        <div class="tname" style="font-size:10px">${t.name}</div>
+        <i class="ico ${cls} mini" style="color:${col}"></i>`;
+    } else if (t.type === 'casino' || t.type === 'police'){
+      el.innerHTML = `<div class="cbar" style="background:${GROUP_COLORS[t.type]}"></div>
+        <div class="tname" style="font-size:10px">${t.name}</div>
+        <div class="temoji">${t.type === 'casino' ? '🎰' : '🚨'}</div>`;
+    } else if (t.type === 'go'){
+      el.innerHTML = `<i class="ico ic-flag" style="width:26px;height:26px;color:#0F6E56"></i>
+        <div class="cname" style="color:#0F6E56;margin-top:3px">起点<br><span style="font-size:9px">+¥${SALARY}</span></div>`;
+    } else if (t.type === 'jail'){
+      el.innerHTML = `<i class="ico ic-lock" style="width:24px;height:24px;color:#8A5A3B"></i>
+        <div class="cname" style="margin-top:3px">监狱</div>`;
+    } else if (t.type === 'parking'){
+      el.innerHTML = `<div class="cname" style="font-size:22px">🅿️</div><div class="cname">免费停车<br><span style="font-size:9px;color:#9A978C" id="poolHint">奖池</span></div>`;
+    } else if (t.type === 'bonus'){
+      el.innerHTML = `<i class="ico ic-award" style="width:26px;height:26px;color:#BA7517"></i>
+        <div class="cname" style="margin-top:2px">奖励<br><span style="font-size:9px">+¥200</span></div>`;
+    }
+    $(stripOf(i)).appendChild(el);
+  });
+}
+
+function refreshTile(i){
+  const dot = document.querySelector('#tile'+i+' .owner-dot');
+  if (dot) dot.remove();
+  if (tileOwner[i] !== undefined){
+    const d = document.createElement('div');
+    d.className = 'owner-dot';
+    d.style.background = players[tileOwner[i]].color;
+    $('tile'+i).appendChild(d);
+  }
+  const st = $('struct'+i);
+  if (st){
+    const lv = tileLevel[i] || 0;
+    st.className = 'ico struct' + (lv > 0 ? ' ' + LEVEL_ICON[lv] + ' on' : '');
+    st.style.color = tileOwner[i] !== undefined ? players[tileOwner[i]].color : '#888780';
+  }
+}
+
+// ================= 棋子 =================
+const PAWN_D = 'M13 -13.1 Q13 -7.75 9.1 -4 L8.45 -3.35 9.25 -1.8 Q12.95 6.45 13 18.2 L13 18.35 Q13 21.5 9.25 23.75 5.45 26 0 26 -5.35 26 -9.15 23.75 -13 21.5 -13 18.35 L-13 18.2 Q-12.95 6.45 -9.15 -1.8 L-8.4 -3.3 -9.15 -4 Q-13 -7.75 -13 -13.1 -13 -18.5 -9.15 -22.25 -5.35 -26 0 -26 5.35 -26 9.1 -22.25 13 -18.5 13 -13.1';
+const TOKENS = [];
+function initTokens(){
+  const layer = $('tokenLayer');
+  players.forEach((p, pi) => {
+    const el = document.createElement('div');
+    el.className = 'token';
+    el.style.color = p.color;
+    el.style.zIndex = 10 + pi;
+    el.innerHTML = `<svg viewBox="-32 -32 64 64">
+      <path d="${PAWN_D}" fill="none" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+      <path d="${PAWN_D}" fill="currentColor"/>
+    </svg>`;
+    layer.appendChild(el);
+    TOKENS.push(el);
+  });
+}
+function positionTokens(){
+  const n = players.length;
+  const [c1, c2, c3] = [CORNER_IDX[1], CORNER_IDX[2], CORNER_IDX[3]];
+  const gap = n > 2 ? 9 : 12;   // 多人多 AI 时棋子间距收紧
+  players.forEach((p, pi) => {
+    const el = TOKENS[pi];
+    if (!el) return;
+    if (p.bankrupt){ el.style.display = 'none'; return; }
+    const r = tileRect(p.pos);
+    const off = (pi - (n-1)/2) * gap;
+    let x, y;
+    if (p.pos <= c1){ x = r.x + r.w/2 - 11 + off; y = r.y + r.h - 25; }
+    else if (p.pos <= c2){ x = r.x + 2; y = r.y + r.h/2 - 11 + off; }
+    else if (p.pos <= c3){ x = r.x + r.w/2 - 11 + off; y = r.y + 3; }
+    else { x = r.x + r.w - 24; y = r.y + r.h/2 - 11 + off; }
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+  });
+}
+
+// ================= 渲染 =================
+function renderPlayers(){
+  const o = GAME_MODE === 'ai' ? aiOverall() : null;
+  $('playersBar').innerHTML = players.map((p, pi) => `
+    <div class="pcard${pi === turn && !gameOver ? ' current' : ''}${p.bankrupt ? ' broke' : ''}" id="pc${pi}">
+      <div class="pname"><span class="pdot" style="background:${p.color}"></span>${p.name}${p.isAI ? `<span class="diff-tag" style="background:${DIFF_TAG_BG[o]};color:${DIFF_TAG_FG[o]}">${AI_DIFF_NAME[o] || '自定义'}</span>` : ''}</div>
+      <div class="pmoney"><i class="ico ic-dollar"></i>${p.money}</div>
+      <div class="pcombos">${(p.bankrupt ? [] : playerCombos(pi)).map(id =>
+        `<span class="combo-tag" style="background:${COMBO_DEFS[id].color}">✦ ${COMBO_DEFS[id].name}</span>`).join('')}</div>
+      <div class="pprops">${p.props.length ? p.props.map(i => TILES[i].name + (tileLevel[i] ? `(${LEVEL_NAME[tileLevel[i]]})` : '')).join('、') : '暂无地产'}</div>
+    </div>`).join('');
+  checkCombos();
+  const ph = $('poolHint');
+  if (ph) ph.textContent = pool > 0 ? `奖池 ¥${pool}` : '奖池';
+  updateBuildBtn();
+}
+
+function log(msg, cls = ''){
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = msg;
+  const box = $('log');
+  box.appendChild(d);
+  if (box.children.length > 80) box.removeChild(box.firstChild);
+  box.scrollTop = 1e6;
+}
+
+function floatMoney(pi, delta){
+  const card = $('pc'+pi);
+  if (!card) return;
+  const r = card.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'float-money';
+  el.style.position = 'fixed';
+  el.style.left = (r.right - 62) + 'px';
+  el.style.top = (r.top + 26) + 'px';
+  el.style.color = delta > 0 ? '#0F6E56' : '#A32D2D';
+  el.textContent = (delta > 0 ? '+' : '−') + '¥' + Math.abs(delta);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
+function flashTile(i){
+  const el = $('tile'+i);
+  if (!el) return;
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 700);
+}
+
+function highlightTile(i, on){
+  document.querySelectorAll('.tile.active').forEach(e => e.classList.remove('active'));
+  if (on) $('tile'+i).classList.add('active');
+}
+
+function updateRound(){ $('roundInfo').textContent = `第 ${round} / ${MAX_ROUNDS} 回合`; }
+
+// ================= 骰子 =================
+const PIP_MAP = {
+  1: [4], 2: [0,8], 3: [0,4,8], 4: [0,2,6,8], 5: [0,2,4,6,8], 6: [0,2,3,5,6,8]
+};
+function makeDie(el){
+  el.innerHTML = Array.from({length:9}, () => '<span></span>').join('');
+}
+function setDie(el, n){
+  const dots = el.querySelectorAll('span');
+  const on = PIP_MAP[n] || [];
+  dots.forEach((d, k) => d.classList.toggle('on', on.includes(k)));
+}
+function rollFace(){
+  const d1 = 1 + Math.floor(Math.random()*6), d2 = 1 + Math.floor(Math.random()*6);
+  return [d1, d2];
+}
+
+// ================= 经济 =================
+function netWorth(p){ return p.money + p.props.reduce((s, i) => s + TILES[i].price + buildCost(i) * (tileLevel[i] || 0), 0); }
+function ownsWholeGroup(pi, group){ return TILES.every((t, i) => t.type !== 'prop' || t.group !== group || tileOwner[i] === pi); }
+
+// ================= 组合效果（Combo） =================
+// 基础组合：只看持有数量与建筑等级；后期可在此拓展触发型/事件型组合
+const COMBO_DEFS = {
+  airline: { name:'航线',      color:'#4A6FA5', desc:'拥有棋盘上全部车站 → 车站租金 ×2' },
+  grid:    { name:'电网',      color:'#E8A13C', desc:'拥有全部电站/水厂 → 电力租金倍率 +4' },
+  mall:    { name:'商业中心',  color:'#8B7AE0', desc:'垄断某组且组内全部满级 → 组内租金再 ×1.5' },
+  infra:   { name:'基建大亨',  color:'#1D9E75', desc:'同时拥有全部车站和全部电站 → 过起点工资 +¥100' },
+};
+function countType(pi, type){ return players[pi].props.filter(i => TILES[i].type === type).length; }
+function totalType(type){ return TILES.filter(t => t.type === type).length; }
+function playerCombos(pi){
+  const c = [];
+  const nSta = totalType('station'), nUti = totalType('utility');
+  if (nSta > 0 && countType(pi, 'station') === nSta) c.push('airline');
+  if (nUti > 0 && countType(pi, 'utility') === nUti) c.push('grid');
+  // 商业中心：任意一组，垄断且全满级
+  const groups = [...new Set(TILES.filter(t => t.type === 'prop').map(t => t.group))];
+  if (groups.some(g => ownsWholeGroup(pi, g) &&
+      TILES.every((t, i) => t.type !== 'prop' || t.group !== g || (tileLevel[i] || 0) === MAX_LEVEL))) c.push('mall');
+  if (c.includes('airline') && c.includes('grid')) c.push('infra');
+  return c;
+}
+// 组合达成播报：首次渲染静默登记，之后新增才提示
+const comboSeen = {};
+function checkCombos(){
+  players.forEach((p, pi) => {
+    const now = p.bankrupt ? [] : playerCombos(pi);
+    const seen = comboSeen[pi];
+    if (seen === undefined){ comboSeen[pi] = now; return; }
+    now.filter(id => !seen.includes(id)).forEach(id => {
+      log(`✨ ${p.name} 达成组合「${COMBO_DEFS[id].name}」：${COMBO_DEFS[id].desc}`, 'good');
+    });
+    comboSeen[pi] = now;
+  });
+}
+// 工资：基建大亨组合加成
+function salaryFor(pi){
+  return SALARY + (playerCombos(pi).includes('infra') ? 100 : 0);
+}
+
+function buildCost(i){
+  const t = TILES[i];
+  return t.type === 'prop' ? Math.round(t.price * 0.5) : 0;
+}
+function stationRent(ownerPi){
+  const n = players[ownerPi].props.filter(i => TILES[i].type === 'station').length;
+  return [0, 100, 200, 400][n] || 400;
+}
+function rentOf(i){
+  const t = TILES[i], owner = tileOwner[i];
+  const combos = playerCombos(owner);
+  if (t.type === 'station') return stationRent(owner) * (combos.includes('airline') ? 2 : 1);
+  if (t.type === 'utility'){
+    // 电站/水厂：租金 = 骰子总点 × 倍率，拥有一座 ×8、两座 ×20；电网组合倍率再 +4
+    const owned = players[owner].props.filter(x => TILES[x].type === 'utility').length;
+    const mult = (owned >= 2 ? 20 : 8) + (combos.includes('grid') ? 4 : 0);
+    return lastRoll * mult;
+  }
+  const lv = tileLevel[i] || 0;
+  let r = t.price * 0.1 * Math.pow(1.6, lv);
+  if (ownsWholeGroup(owner, t.group)) r *= 2;
+  // 商业中心：垄断且组内全满级
+  if (combos.includes('mall') &&
+      TILES.every((tt, ii) => tt.type !== 'prop' || tt.group !== t.group || (tileLevel[ii] || 0) === MAX_LEVEL)) r *= 1.5;
+  return Math.round(r);
+}
+
+function pay(from, to, amount, reason){
+  // AI 现金不够先变卖资产自救（卖房 → 卖地），避免无脑破产
+  if (players[from].isAI && players[from].money < amount) aiRaiseCash(from, amount);
+  players[from].money -= amount;
+  if (to !== null) players[to].money += amount;
+  floatMoney(from, -amount);
+  if (to !== null) floatMoney(to, amount);
+  log(`${players[from].name} ${reason} ¥${amount}`, 'bad');
+  renderPlayers();
+  checkBankrupt(from, to);
+}
+
+function checkBankrupt(pi, creditor = null){
+  const p = players[pi];
+  if (p.money >= 0 || p.bankrupt) return;
+  p.bankrupt = true;
+  // 破产清算：全部地产（连房屋）与剩余现金移交债主；无债主则回归无主、建筑拆除
+  const inherit = creditor !== null && creditor !== pi && !players[creditor].bankrupt;
+  if (inherit){
+    p.props.forEach(i => { tileOwner[i] = creditor; refreshTile(i); });
+    if (p.money > 0){ players[creditor].money += p.money; floatMoney(creditor, p.money); p.money = 0; }
+    log(`📦 ${p.name} 名下 ${p.props.length} 处地产及剩余现金全部移交 ${players[creditor].name}`, 'bad');
+  } else {
+    p.props.forEach(i => {
+      delete tileOwner[i];
+      tileLevel[i] = 0;
+      refreshTile(i);
+    });
+  }
+  p.props = [];
+  log(`💥 ${p.name} 破产出局！`, 'bad');
+  positionTokens();
+  renderPlayers();
+  if (players.filter(x => !x.bankrupt).length <= 1){ endGame(); return; }
+  // 单机模式：玩家本人一旦破产，对局立即结束（AI 之间继续没有意义）
+  if (GAME_MODE === 'ai' && players[0].bankrupt) endGame();
+}
+
+// ================= 建房 / 变卖 =================
+function buildProperty(pi, i){
+  const cost = buildCost(i);
+  if ((tileLevel[i] || 0) >= MAX_LEVEL || players[pi].money < cost) return false;
+  players[pi].money -= cost;
+  tileLevel[i] = (tileLevel[i] || 0) + 1;
+  log(`🏗️ ${players[pi].name} 花费 ¥${cost} 将「${TILES[i].name}」升级为${LEVEL_NAME[tileLevel[i]]}`, 'good');
+  floatMoney(pi, -cost);
+  refreshTile(i);
+  flashTile(i);
+  renderPlayers();
+  return true;
+}
+
+// 出售：卖房每级退地价 25%；无房时可半价卖地给银行
+function houseRefund(i){ return Math.round(TILES[i].price * 0.25); }
+function landRefund(i){ return Math.round(TILES[i].price * 0.5); }
+
+function sellHouseLevel(pi, i){
+  const p = players[pi];
+  if ((tileLevel[i] || 0) <= 0) return false;
+  tileLevel[i]--;
+  const amt = houseRefund(i);
+  p.money += amt;
+  floatMoney(pi, amt);
+  log(`💸 ${p.name} 拆卖「${TILES[i].name}」一级建筑，回收 ¥${amt}`, 'good');
+  refreshTile(i); renderPlayers();
+  return true;
+}
+
+function sellLand(pi, i){
+  const p = players[pi];
+  if (tileOwner[i] !== pi || (tileLevel[i] || 0) > 0) return false;
+  delete tileOwner[i];
+  p.props = p.props.filter(x => x !== i);
+  const amt = landRefund(i);
+  p.money += amt;
+  floatMoney(pi, amt);
+  log(`💸 ${p.name} 以半价把「${TILES[i].name}」卖回银行，回收 ¥${amt}`, 'good');
+  refreshTile(i); renderPlayers();
+  return true;
+}
+
+// AI 破产边缘自救：优先拆卖低级建筑（租金损失小），再考虑卖地
+function aiRaiseCash(pi, need){
+  const p = players[pi];
+  let guard = 60;
+  while (p.money < need && guard-- > 0){
+    const houses = p.props.filter(i => (tileLevel[i] || 0) > 0)
+      .sort((a, b) => (tileLevel[a] || 0) - (tileLevel[b] || 0) || TILES[a].price - TILES[b].price);
+    if (houses.length){ sellHouseLevel(pi, houses[0]); continue; }
+    const lands = p.props.filter(i => TILES[i].type === 'prop' && (tileLevel[i] || 0) === 0)
+      .sort((a, b) => TILES[a].price - TILES[b].price);
+    if (lands.length){ sellLand(pi, lands[0]); continue; }
+    break;
+  }
+}
+
+function updateBuildBtn(){
+  const btn = $('buildBtn');
+  if (!btn) return;
+  const p = players[turn];
+  const canAct = !gameOver && !busy && p && !p.isAI && !p.bankrupt;
+  const cands = p ? p.props.filter(i => TILES[i].type === 'prop' && (tileLevel[i] || 0) < MAX_LEVEL && p.money >= buildCost(i)) : [];
+  const hasAssets = p && p.props.length > 0;
+  btn.disabled = !canAct || (!cands.length && !hasAssets);
+  btn.textContent = '🏗️ 资产管理';
+}
+
+function openBuildModal(){
+  const pi = turn;
+  const render = () => {
+    const p = players[pi];
+    const list = p.props.filter(i => TILES[i].type === 'prop')
+      .sort((a, b) => TILES[a].price - TILES[b].price);
+    $('modalCash').textContent = `当前现金 ¥${p.money}`;
+    if (!list.length){
+      $('buildList').innerHTML = '<p style="font-size:13px;color:#9A978C">你还没有地产，先去圈地吧。</p>';
+      return;
+    }
+    $('buildList').innerHTML = list.map(i => {
+      const lv = tileLevel[i] || 0, cost = buildCost(i);
+      const nowRent = lv === 0 ? Math.round(TILES[i].price * 0.1 * (ownsWholeGroup(pi, TILES[i].group) ? 2 : 1))
+        : Math.round(TILES[i].price * 0.1 * Math.pow(1.6, lv) * (ownsWholeGroup(pi, TILES[i].group) ? 2 : 1));
+      const nextRent = Math.round(TILES[i].price * 0.1 * Math.pow(1.6, lv + 1) * (ownsWholeGroup(pi, TILES[i].group) ? 2 : 1));
+      const max = lv >= MAX_LEVEL;
+      const sellBtn = lv > 0
+        ? `<button class="sell" data-i="${i}">卖房 +¥${houseRefund(i)}</button>`
+        : `<button class="sell" data-i="${i}">卖地 +¥${landRefund(i)}</button>`;
+      return `<div class="build-row">
+        <div class="meta"><b>${TILES[i].name}</b> · ${LEVEL_NAME[lv]}<br>
+          租金 ¥${nowRent}${max ? '（已满级）' : ` → ¥${nextRent}`}　升级费 ¥${cost}</div>
+        <div style="display:flex;gap:6px">
+          ${sellBtn}
+          <button data-i="${i}" ${max || p.money < cost ? 'disabled' : ''}>${max ? '已满级' : '升级'}</button>
+        </div>
+      </div>`;
+    }).join('');
+    $('buildList').querySelectorAll('button[data-i]').forEach(b => {
+      b.onclick = () => {
+        if (b.classList.contains('sell')){
+          const i = +b.dataset.i;
+          if ((tileLevel[i] || 0) > 0) sellHouseLevel(pi, i); else sellLand(pi, i);
+        } else {
+          buildProperty(pi, +b.dataset.i);
+        }
+        render();
+      };
+    });
+  };
+  render();
+  $('buildModal').classList.remove('hidden');
+}
+
+// ================= 移动 =================
+async function moveSteps(pi, steps, animate = true){
+  const p = players[pi];
+  for (let s = 0; s < steps; s++){
+    p.pos = (p.pos + 1) % TILES.length;
+    positionTokens();
+    if (animate) await sleep(150);
+    if (p.pos === 0){
+      const salary = salaryFor(pi);
+      p.money += salary;
+      floatMoney(pi, salary);
+      log(`${p.name} 经过起点，领取工资 ¥${salary}${salary > SALARY ? '（含基建大亨加成）' : ''}`, 'good');
+      renderPlayers();
+    }
+  }
+  const el = TOKENS[pi];
+  if (el){ el.classList.add('hop'); setTimeout(() => el.classList.remove('hop'), 320); }
+  renderPlayers();
+  positionTokens();
+}
+
+async function teleportTo(pi, pos){
+  players[pi].pos = pos;
+  positionTokens();
+  const el = TOKENS[pi];
+  if (el){ el.classList.add('hop'); setTimeout(() => el.classList.remove('hop'), 320); }
+  await sleep(250);
+}
+
+// ================= 落格结算 =================
+async function resolveLanding(pi, depth = 0){
+  const p = players[pi];
+  const i = p.pos, t = TILES[i];
+  highlightTile(i, true);
+  flashTile(i);
+  positionTokens();
+
+  if (t.type === 'prop' || t.type === 'station' || t.type === 'utility'){
+    if (tileOwner[i] === undefined){
+      if (p.isAI){
+        await sleep(550);
+        aiBuy(pi, i);
+      } else {
+        const yes = await waitBuyChoice(i, pi);
+        if (yes){
+          p.money -= t.price;
+          p.props.push(i);
+          tileOwner[i] = pi;
+          floatMoney(pi, -t.price);
+          log(`${p.name} 以 ¥${t.price} 买下了「${t.name}」`, 'good');
+          refreshTile(i); renderPlayers();
+        } else {
+          log(`${p.name} 放弃了购买「${t.name}」`);
+        }
+      }
+    } else if (tileOwner[i] !== pi){
+      const owner = tileOwner[i];
+      const rent = Math.min(rentOf(i), p.money);
+      const why = t.type === 'utility' ? `使用「${t.name}」（骰子 ${lastRoll} 点）`
+        : `向 ${players[owner].name} 支付「${t.name}」租金`;
+      pay(pi, owner, rent, why);
+    } else {
+      log(`${p.name} 回到了自己的「${t.name}」`);
+      if (t.type === 'prop' && p.isAI && !gameOver) aiBuild(pi, i);
+    }
+  } else if (t.type === 'tax'){
+    const amt = Math.min(100, Math.floor(netWorth(p) * 0.1), p.money);
+    pay(pi, null, amt, '缴纳税款');
+    pool += amt;
+  } else if (t.type === 'casino'){
+    await sleep(350);
+    const r = Math.random();
+    if (r < 0.40){
+      p.money += 100;
+      floatMoney(pi, 100);
+      renderPlayers();
+      await showNotice(pi, '🎰 幸运赌场', '手气爆棚！中了大奖 ¥100！');
+      log(`🎰 ${p.name} 在赌场中了大奖，+¥100`, 'good');
+    } else if (r < 0.72){
+      const loss = Math.min(150, Math.max(0, p.money));
+      pool += loss;
+      pay(pi, null, loss, '赌场失利，损失');
+      await showNotice(pi, '🎰 幸运赌场', `运气不佳，输了 ¥${loss}（罚金计入奖池）。`);
+    } else {
+      await showNotice(pi, '🎰 幸运赌场', '不输不赢，全身而退。');
+      log(`🎰 ${p.name} 在赌场全身而退`);
+    }
+  } else if (t.type === 'police'){
+    await showNotice(pi, '🚨 交警临检', `${p.name} 被查出违规，立即押送监狱，下一回合跳过！`);
+    log(`🚨 ${p.name} 被押送监狱，下回合跳过`, 'bad');
+    await teleportTo(pi, CORNER_IDX[1]);
+    p.skip = 1;
+    positionTokens();
+  } else if (t.type === 'bonus'){
+    p.money += 200;
+    floatMoney(pi, 200);
+    log(`${p.name} 落在奖励格，获得 ¥200！`, 'good');
+    renderPlayers();
+  } else if (t.type === 'jail'){
+    log(`👀 只是路过监狱，探个监～`);
+  } else if (t.type === 'parking'){
+    if (pool > 0){
+      const win = pool; pool = 0;
+      p.money += win;
+      floatMoney(pi, win);
+      renderPlayers();
+      log(`🅿️ ${p.name} 落在免费停车，卷走奖池 ¥${win}！`, 'good');
+    } else {
+      log(`🅿️ ${p.name} 在免费停车场歇脚`);
+    }
+  } else if (t.type === 'go'){
+    log(`🏠 ${p.name} 停在起点，安心休整`);
+  } else if (t.type === 'chance'){
+    const card = CHANCE_CARDS[Math.floor(Math.random()*CHANCE_CARDS.length)];
+    $('cardDesc').textContent = card.text;
+    const box = $('cardBox');
+    box.classList.remove('flip'); void box.offsetWidth; box.classList.add('flip');
+    $('cardModal').classList.remove('hidden');
+    if (!p.isAI) await waitCardOk();
+    else { await sleep(1100); $('cardModal').classList.add('hidden'); }
+    log(`⚡ ${p.name} 抽到机会卡：${card.text}`, 'card');
+
+    if (card.money){
+      p.money += card.money;
+      floatMoney(pi, card.money);
+      renderPlayers();
+    }
+    if (card.effect === 'birthday'){
+      for (let qi = 0; qi < players.length; qi++){
+        if (qi === pi || players[qi].bankrupt) continue;
+        const gift = Math.min(50, players[qi].money);
+        pay(qi, pi, gift, `给 ${p.name} 送生日礼物`);
+        if (gameOver) break;
+      }
+    }
+    if (card.effect === 'show'){
+      for (let qi = 0; qi < players.length; qi++){
+        if (qi === pi || players[qi].bankrupt) continue;
+        const fee = Math.min(40, players[qi].money);
+        pay(qi, pi, fee, `买 ${p.name} 的演出门票`);
+        if (gameOver) break;
+      }
+    }
+    if (card.effect === 'repair'){
+      const n = p.props.reduce((s, idx) => s + (tileLevel[idx] || 0), 0);
+      if (n > 0){
+        const cost = n * 40;
+        pool += cost;
+        pay(pi, null, cost, `支付 ${n} 栋建筑维修费`);
+      } else {
+        log(`🏠 ${p.name} 名下没有建筑，躲过维修费`);
+      }
+    }
+    if (card.effect === 'toJail'){
+      await teleportTo(pi, CORNER_IDX[1]);
+      p.skip = 1;
+      positionTokens();
+      log(`⛓️ ${p.name} 入狱，下回合跳过`, 'bad');
+    }
+    const canChain = depth < 3;   // 防止连续触发移动类卡片造成无限嵌套
+    if (card.effect === 'back3' && canChain){
+      p.pos = (p.pos - 3 + TILES.length) % TILES.length;
+      positionTokens();
+      await sleep(280);
+      await resolveLanding(pi, depth + 1);
+      return;
+    }
+    if (card.effect === 'toStation' && canChain){
+      let idx = p.pos;
+      for (let k = 1; k <= TILES.length; k++){
+        const cand = (p.pos + k) % TILES.length;
+        if (TILES[cand].type === 'station'){ idx = cand; break; }
+      }
+      await teleportTo(pi, idx);
+      await sleep(200);
+      await resolveLanding(pi, depth + 1);
+      return;
+    }
+    if (card.effect === 'move3' && canChain){
+      await moveSteps(pi, 3);
+      await resolveLanding(pi, depth + 1);
+      return;
+    }
+    if (card.effect === 'toStart'){
+      const salary = salaryFor(pi);
+      p.money += salary;
+      floatMoney(pi, salary);
+      log(`${p.name} 到达起点，领工资 ¥${salary}`, 'good');
+      await teleportTo(pi, 0);
+      renderPlayers();
+    }
+  }
+
+  renderPlayers();
+  checkBankrupt(pi);
+  if (players.every(x => x.bankrupt)) endGame();
+  saveGame();
+}
+
+// ================= 弹窗交互 =================
+function waitBuyChoice(i, pi){
+  return new Promise(resolve => {
+    const t = TILES[i];
+    const rentNote = t.type === 'utility' ? '租金按每次骰子点数计算（×8，集齐两座 ×20）'
+      : t.type === 'station' ? '租金按拥有车站数量阶梯计算'
+      : `基础租金 ¥${Math.round(t.price*0.1)}`;
+    $('buyTitle').textContent = `购买「${t.name}」？`;
+    $('buyDesc').textContent = `${players[pi].name}：价格 ¥${t.price}，${rentNote}。买下后剩余 ¥${players[pi].money - t.price}。`;
+    $('buyModal').classList.remove('hidden');
+    $('buyYes').onclick = () => { $('buyModal').classList.add('hidden'); resolve(true); };
+    $('buyNo').onclick  = () => { $('buyModal').classList.add('hidden'); resolve(false); };
+  });
+}
+function waitCardOk(){
+  return new Promise(resolve => {
+    $('cardOk').onclick = () => { $('cardModal').classList.add('hidden'); resolve(); };
+  });
+}
+function showNotice(pi, title, text){
+  return new Promise(resolve => {
+    $('noticeTitle').textContent = title;
+    $('noticeDesc').textContent = text;
+    $('noticeModal').classList.remove('hidden');
+    const done = () => { $('noticeModal').classList.add('hidden'); resolve(); };
+    if (players[pi].isAI){ setTimeout(done, 1500); }
+    else { $('noticeOk').onclick = done; }
+  });
+}
+
+// ================= AI（三档难度） =================
+// 该组里“我已有几块 / 对手有几块 / 还差几块凑满”
+function groupState(pi, i){
+  const group = TILES[i].group;
+  const same = TILES.map((t, idx) => t.type === 'prop' && t.group === group ? idx : -1).filter(x => x >= 0);
+  return {
+    size: same.length,
+    mine: same.filter(x => tileOwner[x] === pi).length,
+    opp:  same.filter(x => tileOwner[x] !== undefined && tileOwner[x] !== pi).length,
+    free: same.filter(x => tileOwner[x] === undefined).length,
+  };
+}
+
+function aiWantsBuy(pi, i){
+  const p = players[pi], t = TILES[i];
+  if (p.money < t.price) return false;
+
+  const style = AI_ATTR.buy;
+  if (style === 'easy') return Math.random() < 0.6;  // 付得起就六成概率随手买
+
+  const s = groupState(pi, i);
+  if (style === 'normal'){
+    if (s.opp >= 2) return false;                    // 会被对手占优的组不接盘
+    return p.money - t.price >= 150;                 // 留 ¥150 安全垫就买
+  }
+
+  // hard：会算账
+  const completingMine = s.mine === s.size - 1;                    // 买下即凑齐垄断
+  const blockingOpp   = AI_ATTR.tactic === 'hard' && s.opp === s.size - 1;  // 对手只差这一块，必须阻击
+  const buffer = (completingMine || blockingOpp) ? 50 : 250;
+  if (p.money - t.price < buffer) return false;
+  if (s.opp >= 2 && !blockingOpp) return false;      // 组里对手已占两块以上，不值得接盘
+  return true;
+}
+
+function aiBuy(pi, i){
+  const p = players[pi], t = TILES[i];
+  if (!aiWantsBuy(pi, i)){
+    log(`${p.name} 放弃购买「${t.name}」`);
+    return;
+  }
+  p.money -= t.price;
+  p.props.push(i);
+  tileOwner[i] = pi;
+  floatMoney(pi, -t.price);
+  log(`${p.name} 以 ¥${t.price} 买下了「${t.name}」`, 'good');
+  refreshTile(i); renderPlayers();
+}
+
+function aiBuild(pi, preferIdx){
+  const p = players[pi];
+  const style = AI_ATTR.build;
+  if (style === 'easy') return;                       // 简单：从不建房
+
+  let cands = p.props.filter(i => TILES[i].type === 'prop' && (tileLevel[i] || 0) < MAX_LEVEL);
+  if (!cands.length) return;
+
+  if (style === 'normal'){
+    cands = cands.filter(i => p.money - buildCost(i) >= 400);
+    if (!cands.length) return;
+    const target = cands.includes(preferIdx) ? preferIdx
+      : cands.sort((a, b) => TILES[b].price - TILES[a].price)[0];
+    buildProperty(pi, target);
+    return;
+  }
+
+  // hard：留 ¥500 安全垫；优先垄断组、优先低级房（升级性价比最高）
+  cands = cands.filter(i => p.money - buildCost(i) >= 500);
+  if (!cands.length) return;
+  cands.sort((a, b) => {
+    const ma = ownsWholeGroup(pi, TILES[a].group) ? 1 : 0;
+    const mb = ownsWholeGroup(pi, TILES[b].group) ? 1 : 0;
+    if (ma !== mb) return mb - ma;
+    const la = tileLevel[a] || 0, lb = tileLevel[b] || 0;
+    if (la !== lb) return la - lb;
+    return TILES[a].price - TILES[b].price;
+  });
+  buildProperty(pi, cands[0]);
+}
+
+// ================= 回合驱动 =================
+async function rollDice(){
+  if (busy || gameOver) return;
+  busy = true;
+  $('rollBtn').disabled = true;
+  updateBuildBtn();
+  const p = players[turn];
+
+  $('die1').classList.add('rolling');
+  $('die2').classList.add('rolling');
+  for (let k = 0; k < 6; k++){
+    setDie($('die1'), 1 + Math.floor(Math.random()*6));
+    setDie($('die2'), 1 + Math.floor(Math.random()*6));
+    await sleep(80);
+  }
+  const [d1, d2] = rollFace();
+  setDie($('die1'), d1);
+  setDie($('die2'), d2);
+  lastRoll = d1 + d2;
+  $('die1').classList.remove('rolling');
+  $('die2').classList.remove('rolling');
+  log(`🎲 ${p.name} 掷出 ${d1} + ${d2} = ${d1+d2}${d1===d2 ? '（双数，再来一次）' : ''}`);
+
+  await moveSteps(turn, d1 + d2);
+  await sleep(180);
+  await resolveLanding(turn);
+
+  if (gameOver){ busy = false; return; }
+
+  if (d1 === d2 && !p.bankrupt){
+    doubleStreak++;
+    if (doubleStreak >= 3){
+      // 连续三次双数：超速行驶，直接押送监狱
+      doubleStreak = 0;
+      log(`🚔 ${p.name} 连续三次掷出双数，超速被扣，押送监狱！下回合跳过`, 'bad');
+      await showNotice(turn, '🚔 超速拘捕', `${p.name} 连续三次掷出双数，因超速被押送监狱，下回合跳过！`);
+      await teleportTo(turn, CORNER_IDX[1]);
+      p.skip = 1;
+      positionTokens();
+      busy = false;
+      nextStep(false);
+      return;
+    }
+    $('turnInfo').textContent = `${p.name} 掷出双数，继续行动`;
+    await sleep(600);
+    busy = false;
+    nextStep(true);
+    return;
+  }
+  doubleStreak = 0;
+  busy = false;
+  nextStep(false);
+}
+
+function nextStep(samePlayer){
+  if (gameOver) return;
+  if (!samePlayer){
+    doubleStreak = 0;   // 轮到下一位玩家，双数连击计数清零
+    if (turn === players.length - 1){
+      turn = 0; round++;
+      updateRound();
+      if (round > MAX_ROUNDS){ endGame(); return; }
+    } else turn++;
+  }
+  const p = players[turn];
+  if (p.bankrupt){ nextStep(false); return; }
+  if (p.skip){
+    p.skip = 0;
+    log(`⛓️ ${p.name} 被拘留中，本回合跳过`, 'bad');
+    renderPlayers();
+    saveGame();
+    setTimeout(() => nextStep(false), 900);
+    return;
+  }
+  saveGame();
+  renderPlayers();
+  $('turnInfo').textContent = p.isAI ? `${p.name} 思考中…` : `轮到 ${p.name} 行动`;
+  if (p.isAI){
+    busy = true;
+    updateBuildBtn();
+    setTimeout(() => { busy = false; rollDice(); }, 800);
+  } else {
+    $('rollBtn').disabled = false;
+    updateBuildBtn();
+  }
+}
+
+// ================= 结束 =================
+function endGame(){
+  if (gameOver) return;
+  gameOver = true;
+  clearSave();
+  const alive = players.map((p, i) => p.bankrupt ? null : i).filter(i => i !== null);
+  let title, desc;
+  if (GAME_MODE === 'ai' && players[0].bankrupt && alive.length >= 1){
+    // 单机模式下玩家本人破产出局
+    const winner = alive.sort((a, b) => netWorth(players[b]) - netWorth(players[a]))[0];
+    title = `${players[winner].name} 获胜！`;
+    desc = '很遗憾，你已破产出局，本局结束。';
+  } else if (alive.length === 1){
+    title = `${players[alive[0]].name} 获胜！`;
+    desc = `对手全部破产出局，总资产 ¥${netWorth(players[alive[0]])}。`;
+  } else {
+    const sorted = [...players.keys()].sort((a, b) => netWorth(players[b]) - netWorth(players[a]));
+    title = sorted[0] === 0 ? '期限已到，你赢了！' : `期限已到，${players[sorted[0]].name} 获胜`;
+    desc = players.map((p, i) => `${p.name} ¥${netWorth(p)}`).join('　|　');
+  }
+  $('goTitle').textContent = '🏆 ' + title;
+  $('goDesc').textContent = desc;
+  $('gameOverModal').classList.remove('hidden');
+  updateBuildBtn();
+  confetti();
+}
+
+function confetti(){
+  const colors = ['#1D9E75','#EF9F27','#D4537E','#3E8FDD','#8B7AE0'];
+  for (let k = 0; k < 40; k++){
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random()*100 + 'vw';
+    c.style.background = colors[k % colors.length];
+    c.style.animationDuration = (2 + Math.random()*1.8) + 's';
+    c.style.animationDelay = (Math.random()*0.6) + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 4200);
+  }
+}
+
+// ================= 启动 =================
+buildBoard();
+initTokens();
+makeDie($('die1'));
+makeDie($('die2'));
+setDie($('die1'), 3);
+setDie($('die2'), 4);
+renderPlayers();
+positionTokens();
+updateRound();
+$('modeLabel').textContent = (GAME_MODE === 'ai' ? '单机 vs AI' : `本地同屏 ${HOTSEAT_N} 人`) + ` · ${MAP.name} · 本地存档`;
+
+function fitBoard(){
+  const wrap = $('boardWrap');
+  const vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+  const avail = vw >= 900 ? 530 : Math.max(260, vw - 36);
+  const scale = Math.min(1, avail / 530);
+  wrap.style.transform = `scale(${scale})`;
+  wrap.style.height = (530 * scale) + 'px';
+  wrap.style.width = (530 * scale) + 'px';
+}
+window.addEventListener('resize', fitBoard);
+fitBoard();
+
+$('rollBtn').onclick = rollDice;
+$('buildBtn').onclick = openBuildModal;
+$('buildClose').onclick = () => { $('buildModal').classList.add('hidden'); updateBuildBtn(); };
+$('newGameBtn').onclick = () => { if (confirm('确定放弃当前对局，重新开始吗？')) { clearSave(); location.reload(); } };
+$('restartBtn').onclick = () => { clearSave(); location.reload(); };
+
+// 从大厅「开始新对局」进来时，先清掉旧档
+if (QS.get('new') === '1') clearSave();
+
+function applySaveState(sv){
+  if (GAME_MODE === 'ai' && sv.attrs){
+    Object.keys(AI_ATTR).forEach(k => {
+      if (DIFF_LEVELS.includes(sv.attrs[k])) AI_ATTR[k] = sv.attrs[k];
+    });
+  }
+  sv.players.forEach((sp, i) => {
+    players[i].money = sp.money;
+    players[i].pos = sp.pos;
+    players[i].props = [...sp.props];
+    players[i].bankrupt = sp.bankrupt;
+    players[i].skip = sp.skip || 0;
+  });
+  tileOwner = { ...sv.tileOwner };
+  tileLevel = { ...(sv.levels || {}) };
+  pool = sv.pool || 0;
+  turn = sv.turn; round = sv.round;
+  for (let i = 0; i < TILES.length; i++) refreshTile(i);
+  renderPlayers(); positionTokens(); updateRound();
+  const pp = players[turn];
+  $('turnInfo').textContent = pp.isAI ? `${pp.name} 思考中…` : `轮到 ${pp.name} 行动`;
+  if (!pp.isAI){ $('rollBtn').disabled = false; updateBuildBtn(); }
+}
+
+const saved = loadSave();
+
+// 大厅点「继续存档」带 autoload=1 进来：直接进局，不再二次确认
+if (saved && QS.get('autoload') === '1'){
+  applySaveState(saved);
+  log(`📂 已读取存档 · 第 ${saved.round} 回合，继续对局`, 'good');
+  if (players[turn].isAI){
+    busy = true;
+    setTimeout(() => { busy = false; rollDice(); }, 800);
+  }
+} else if (saved){
+  applySaveState(saved);
+
+  const d = new Date(saved.savedAt), pad = n => String(n).padStart(2,'0');
+  $('resumeDesc').textContent = `存档时间 ${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}　|　第 ${saved.round} 回合`;
+  $('resumeModal').classList.remove('hidden');
+  $('resumeYes').onclick = () => {
+    $('resumeModal').classList.add('hidden');
+    log('📂 已读取本地存档，继续对局', 'good');
+    if (players[turn].isAI){
+      busy = true;
+      setTimeout(() => { busy = false; rollDice(); }, 800);
+    }
+  };
+  $('resumeNo').onclick = () => { clearSave(); location.reload(); };
+} else {
+  $('rollBtn').disabled = false;
+  log(`🗺️ 地图：${MAP.name}（${TILES.length} 格，${TILES.filter(t => t.type === 'prop').length} 块地产）`);
+  log(`🎮 对局开始！${GAME_MODE === 'ai' ? `你和 ${AI_COUNT} 位 AI 各有 ¥1500` : `${HOTSEAT_N} 位玩家各 ¥1500`}，30 回合内总资产最高者获胜。`);
+  if (GAME_MODE === 'ai'){
+    const o = aiOverall();
+    if (o === 'custom'){
+      log(`🤖 AI 自定义：${Object.keys(AI_ATTR).map(k => AI_ATTR_LABEL[k] + AI_DIFF_NAME[AI_ATTR[k]]).join(' · ')}`);
+    } else {
+      log(`🤖 AI 难度：${AI_DIFF_NAME[o]} —— ${AI_DIFF_DESC[o]}`);
+    }
+  }
+  log('🏗️ 买下地产后点「建设房屋」可升级，租金按 ×1.6 递增。');
+  log(`💾 每回合自动存档，中途退出后可继续对局。`);
+  updateBuildBtn();
+}
+
+</script>
+</body>
+</html>
