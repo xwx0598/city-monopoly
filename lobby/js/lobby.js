@@ -92,7 +92,9 @@ function syncMapOpts(){
   // 同屏对战的人数按钮始终跟随当前地图选择（并带上可选玩法参数）
   document.querySelectorAll('.hotseat-opts a').forEach(a => {
     const n = a.dataset.slot.replace('hotseat', '');
-    a.href = '../../game/html/game.html?mode=hotseat&n=' + n + '&map=' + MAP_PREF + '&new=1' + modsQuery();
+    const ms = (document.getElementById('mseedInput') || {}).value || '';
+    a.href = '../../game/html/game.html?mode=hotseat&n=' + n + '&map=' + MAP_PREF + '&new=1' + modsQuery()
+      + (MAP_PREF === 'random' && /^\d{1,6}$/.test(ms.trim()) ? '&mseed=' + ms.trim() : '');
   });
 }
 document.getElementById('mapOpts').addEventListener('click', e => {
@@ -125,6 +127,7 @@ document.getElementById('modsOpts').addEventListener('click', e => {
   syncModsOpts();
   syncMapOpts();   // 同屏入口链接要带上最新开关
 });
+document.getElementById('mseedInput').addEventListener('input', syncMapOpts);
 syncModsOpts();
 syncMapOpts();   // MODS_PREF 已就绪，这里才能安全带上可选玩法参数
 
@@ -170,6 +173,10 @@ document.getElementById('aiStartBtn').addEventListener('click', () => {
     buy:AI_SETUP.buy, build:AI_SETUP.build, tactic:AI_SETUP.tactic,
     map: MAP_PREF, new:'1',
   });
+  if (MAP_PREF === 'random'){
+    const ms = (document.getElementById('mseedInput').value || '').trim();
+    if (/^\d{1,6}$/.test(ms)) q.set('mseed', ms);
+  }
   if (MODS_PREF.length) q.set('mods', MODS_PREF.join(','));
   location.href = '../../game/html/game.html?' + q.toString();
 });

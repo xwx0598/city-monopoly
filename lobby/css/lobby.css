@@ -137,6 +137,12 @@
   .map-opts button:hover { background:#EFEBE1; }
   .map-opts button.on { background:var(--slate); color:#FBF8F2; box-shadow:0 2px 7px rgba(64,68,74,.3); }
   .map-opts button.on small { color:rgba(251,248,242,.7); }
+  .map-opts .mseed {
+    width:74px; padding:6px 8px; border:1px solid var(--line); border-radius:10px;
+    background:#FBF8F2; font-size:12.5px; color:var(--ink-2); text-align:center; outline:none;
+  }
+  .map-opts .mseed:focus { border-color:var(--slate); }
+  .map-opts .mseed::placeholder { color:#B0AB9E; font-size:11px; }
 
   .hotseat-opts { display:flex; gap:8px; margin-top:16px; }  .hotseat-opts a { padding:7px 16px; border-radius:11px; font-size:13px; text-decoration:none; color:#FBF8F2; background:#8E86A0; transition:.15s; position:relative; box-shadow:0 3px 0 #726A85, 0 5px 10px rgba(64,68,74,.2); }
   .hotseat-opts a:nth-child(2){ background:#93A0AA; box-shadow:0 3px 0 #7A868F, 0 5px 10px rgba(64,68,74,.2); }

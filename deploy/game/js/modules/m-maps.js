@@ -96,13 +96,28 @@ Game.use('maps', () => {
       ]},
   };
 
-  // 随机岛屿：随机边数 + 随机分组 + 随机特殊格，60 次生成校验均可用
+  // 随机岛屿：种子化生成——同一 mseed 必出同一张图（分享码玩法）。
+  // 种子只接管地图生成，对局内的骰子/事件卡仍走全局 Math.random，互不影响。
+  function mulberry32(a){
+    return function(){
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
   function genRandomMap(){
-    const EDGE = [4, 5, 6, 7][Math.floor(Math.random()*4)];   // 20/24/28/32 格
+    const seedQS = parseInt(new URLSearchParams(location.search).get('mseed'), 10);
+    const shared = Number.isFinite(seedQS) && seedQS > 0;
+    const seed = shared ? seedQS : 10000 + Math.floor(Math.random() * 90000);   // 每局现摇一个 5 位分享码
+    const R = mulberry32(seed);
+    const shuffle = arr => { for (let i = arr.length - 1; i > 0; i--){ const j = Math.floor(R() * (i + 1)); const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; } return arr; };
+    const EDGE = [4, 5, 6, 7][Math.floor(R()*4)];   // 20/24/28/32 格
     const TOTAL = (EDGE + 1) * 4;
     const groups = GROUP_LETTERS.slice(0, Math.min(5, Math.max(3, Math.round(TOTAL / 8))));
-    const names = [...PROP_NAMES].sort(() => Math.random() - 0.5);
-    const stations = [...STATION_NAMES].sort(() => Math.random() - 0.5);
+    const names = shuffle([...PROP_NAMES]);
+    const stations = shuffle([...STATION_NAMES]);
     const tiles = new Array(TOTAL);
     tiles[0] = { type:'go', name:'起点' };
     tiles[EDGE + 1] = { type:'jail', name:'监狱' };
@@ -119,8 +134,8 @@ Game.use('maps', () => {
     specials.push({ type:'chance', name:'机会' });
     if (TOTAL >= 24) specials.push({ type:'chance', name:'机会' });
     specials.push({ type:'tax', name:'税收' });
-    if (TOTAL >= 24){ specials.push({ type:'utility', name:Math.random() < 0.5 ? '电力公司' : '自来水厂', price:700 }); }
-    if (TOTAL >= 28){ specials.push({ type:'utility', name:Math.random() < 0.5 ? '电力公司' : '自来水厂', price:700 }); }
+    if (TOTAL >= 24){ specials.push({ type:'utility', name:R() < 0.5 ? '电力公司' : '自来水厂', price:700 }); }
+    if (TOTAL >= 28){ specials.push({ type:'utility', name:R() < 0.5 ? '电力公司' : '自来水厂', price:700 }); }
     const nCasino = TOTAL >= 28 ? 2 : 1;
     for (let k = 0; k < nCasino; k++) specials.push({ type:'casino', name:'幸运赌场' });
     const nPolice = Math.max(1, Math.floor(TOTAL / 28));
@@ -139,10 +154,11 @@ Game.use('maps', () => {
       for (let k = 0; k < cnt; k++) propTiles.push({ type:'prop', name:names.pop(), group:g, price:base + k * 50 });
     });
 
-    const bag = [...propTiles, ...specials].sort(() => Math.random() - 0.5);
+    const bag = shuffle([...propTiles, ...specials]);
     let bi = 0;
     edgeIdx.forEach(i => { tiles[i] = bag[bi++]; });
-    return { id:'random', name:'随机岛屿', tiles };
+    log(`🗺️ 随机岛屿分享码：${seed}${shared ? '（来自分享）' : '——大厅「随机岛屿」旁输入它，可复现同一张图'}`, 'card');
+    return { id:'random', name:`随机岛屿 #${seed}`, tiles };
   }
 
   // 启动时决定用哪张地图：存档里的地图 > URL 参数 > 预设默认
