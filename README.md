@@ -1,8 +1,14 @@
 # 城市大富翁
 
-一款卡通城市风格的回合制网页棋盘游戏。纯前端实现，无框架、无依赖、无后端，下载即可开局。
+一款卡通城市风格的回合制网页棋盘游戏。前端纯原生 JS，无框架、无构建、无 npm 依赖；联机模式额外带一个零依赖的 Python 小后端（起服务时自动带上）。
 
-支持 **单机对战 AI**（1~3 位 AI，买地/建房/对抗三项难度独立调节）与 **同屏热座**（2~4 人轮流操作）。对局每回合自动存档，关掉浏览器再回来能接着玩。
+支持三种对局方式：
+
+- **单机对战 AI** — 1~3 位 AI，买地/建房/对抗三项难度独立调节
+- **同屏热座** — 2~4 人轮流操作
+- **局域网联机** — 三国杀式的房间制：建房拿 4 位房间码，同网段的人输码进房，各自看自己的棋盘，轮流下自己的回合
+
+对局每回合自动存档，关掉浏览器再回来能接着玩。
 
 ## 项目文档
 
@@ -15,16 +21,19 @@
 需要 Python 3（用来起一个静态服务器；直接双击 HTML 会因 `file://` 跨目录限制导致模块加载失败）。
 
 ```bash
-# 方式一：双击运行
+# 方式一：双击运行（推荐，起服务 + 开浏览器一步到位）
 deploy/start_server.bat
 
 # 方式二：命令行
-python -m http.server 8686
+python deploy/server.py          # 带缓存头、端口顺延、自动开浏览器
+python -m http.server 8686       # 最简静态服务，但会被浏览器缓存坑
 ```
 
-然后浏览器打开 <http://localhost:8686>。
+`server.py` 会做四件事：绑定 `0.0.0.0`（局域网可访问）、发 `Cache-Control: no-cache`（改完代码刷新即生效，不会拿到旧副本）、端口 8686 被占用时自动顺延到 8687/8688…（控制台会打印实际端口）、自动打开浏览器。用 `--port 9000` 可指定起始端口。
 
-`start_server.bat` 绑定 `0.0.0.0`，同一局域网内的手机、平板也能访问（用电脑的内网 IP 替换 `localhost`），适合面对面热座。端口被占用时改脚本里的 `8686` 即可。
+`start_server.bat` 就是 `python deploy/server.py` 的包装：找不到 Python 会给提示并暂停窗口，不会一闪而过。
+
+内网联机：同一 Wi-Fi / 交换机下的手机、平板用电脑的内网 IP 访问（控制台启动时会打印，例如 `http://192.168.1.7:8686`）。想跨公网玩要么做端口转发，要么用 Cloudflare Tunnel / Tailscale 这类免费内网穿透，不必租服务器。
 
 ## 玩法要点
 
@@ -54,6 +63,16 @@ python -m http.server 8686
 
 完整规则可在游戏大厅的「玩法说明」里查看，含房屋升级图解。
 
+## 联机对战（房间模式）
+
+大厅第三张卡「联机对战」→ 起个昵称 → **创建房间**（选地图、人数、玩法套餐）或从房间列表里挑一个加入。房间码是 4 位数字，口头报给同一局域网的朋友即可，没有匹配、没有大厅聊天室，就是三国杀 / QQ 游戏大厅那种「进房间坐下」。
+
+流程：建房（房主）→ 别人输码进房占座 → 各自点「准备」→ 房主点「开局」→ 全员跳到棋盘页，**各自看到自己的视角，轮到谁谁才能掷骰**。别人回合时骰子按钮禁用，顶部提示「等待 甲 操作…」。
+
+技术取舍：**服务端不跑规则**，只当座位表 + 消息转发。每个回合由当前行动者的浏览器算出状态，广播一份全量快照（结构与本地存档 v2 一致），其他人套用重绘。好处是规则只有一份（`game/js/core.js`），不用在 Python 里重写；代价是行动者必须在线，他一掉线这局就停在等他的回合——刷新页面会自动重连并顶掉旧连接（`resume` 指令按房间号 + 座位号重绑），所以误关标签页能救回来。
+
+联机时自动关掉几个需要多方即时确认的玩法：**交易、表决（城市建设）、探监放贷**，拍卖行也跳过。其余玩法（道具、股票、悬赏、羁绊、天气……）照常。
+
 ## 架构
 
 核心引擎只负责最基础的对局（掷骰、移动、买地、收租、建房、破产、胜负），其余玩法全部以可插拔模块叠加。**任一模块出错只记一条日志，核心玩法照常运行。**
@@ -61,13 +80,19 @@ python -m http.server 8686
 ```
 index.html                 入口跳转
 lobby/                     游戏大厅：地图选择 / 对局设置 / 存档槽 / 规则说明
+├─ html/index.html         三张卡：单机 / 同屏 / 联机 + 各视图（设置、房间列表、房间内）
+├─ css/lobby.css
+└─ js/
+   ├─ lobby.js             大厅视图切换与开局跳转
+   └─ net.js               联机大厅：连接、建/加房、座位准备、开局
 game/
 ├─ html/game.html          棋盘页（仅结构）
 ├─ css/game.css            3D 倾斜桌面、控制台、弹窗
 └─ js/
-   ├─ core.js              核心引擎
+   ├─ core.js              核心引擎（含 GAME_MODE / snapshot / applyState）
    ├─ config.js            模块开关（删一行即卸载该玩法）
    ├─ boot.js              启动引导
+   ├─ mp.js                对局内联机：连 /ws、收发快照、心跳重连
    ├─ _selftest.js         自检脚本（仅 ?selftest=1 时注入）
    └─ modules/
       ├─ m-maps.js         多地图 + 随机岛屿生成
@@ -80,9 +105,14 @@ game/
       ├─ m-stats.js        对局统计（资产曲线 / 垄断纪录）
       └─ m-synergy.js      金铲铲式羁绊（可选玩法，大厅开关启用）
 assets/                    原始 SVG 素材
-tools/selftest.mjs         无头浏览器整局自检（不参与运行）
-tools/items-test.mjs       道具模块单元演练（node 直接跑，不依赖浏览器）
-deploy/                    可直接运行的副本（含启动脚本）
+tools/
+├─ selftest.mjs            无头浏览器整局自检（不参与运行，22 组）
+├─ items-test.mjs          道具模块单元演练（node 直接跑，不依赖浏览器）
+├─ mp-test.mjs             房间协议测试（零依赖 WebSocket 客户端，16 条断言）
+├─ mp-e2e.mjs              CDP 双端整局联机 E2E（两个浏览器真打一局）
+├─ lobby-mp-smoke.mjs      大厅联机 UI 冒烟（自动建房 + 脚本扮演乙加入）
+└─ sync-deploy.mjs         把源码同步到 deploy/ 运行副本
+deploy/                    可直接运行的副本（含启动脚本 server.py / mp.py / start_server.bat）
 ```
 
 扩展点全部钩子化：租金倍率 `rentFilters`、地块效果 `tileHandlers`、工资加成 `salaryFilters`、存档附加 `saveExtras / loadExtras`，模块之间互不侵入。
@@ -93,7 +123,9 @@ deploy/                    可直接运行的副本（含启动脚本）
 - `?mods=synergy` — 追加启用可选玩法模块（羁绊）；大厅「可选玩法」开关就是往链接里加这个参数，存档会记住并在续档时自动带回
 - `?new=1` — 忽略存档强制开新局
 
-其余参数：`mode=ai|hotseat`、`ai=1~3`、`buy/build/tactic=easy|normal|hard`、`persona=tycoon|renter|bully|mixed|off`、`map=mini|classic|metro|random`、`mseed=数字`（随机岛屿分享码）、`n=2~4`、`autoload=1`。
+其余参数：`mode=ai|hotseat|mp`、`ai=1~3`、`buy/build/tactic=easy|normal|hard`、`persona=tycoon|renter|bully|mixed|off`、`map=mini|classic|metro|random`、`mseed=数字`（随机岛屿分享码）、`n=2~4`、`autoload=1`、`fast=1`（动画压到 15% 时长，调试用）。
+
+联机页由大厅拼出：`?mode=mp&room=2051&seat=1&seats=0,1&names=甲|乙&map=classic&mods=items,stocks`。`seat` 是本地玩家在 `seats` 里的下标，`turn` 与它相等时才允许操作。
 
 ### 自检（改完核心逻辑先跑一遍）
 
@@ -111,6 +143,16 @@ node tools/selftest.mjs --verbose   # 附带落格覆盖率和排版告警
 
 `?selftest=1` 也可以手动用，页面标题会显示 `PASS` / `FAIL`。种子随机只接管骰子、事件卡与 AI 决策；随机地图的布局在更早阶段生成，要固定地图请显式传 `map=`。
 
+联机部分有三层验证，都要先按上面的方式起服务：
+
+```bash
+node tools/mp-test.mjs          # 房间协议：建房/加入/准备/开局/状态转发/断线重绑，16 条断言
+node tools/lobby-mp-smoke.mjs   # 大厅 UI：自动建房 + 脚本扮演乙加入准备，验证满员自动开局跳转
+node tools/mp-e2e.mjs           # 双端整局：两个浏览器各自执子，真打到 gameover，双方终局状态一致
+```
+
+`mp-test.mjs` 自带一个零依赖 WebSocket 客户端（RFC 6455 握手 + 帧编解码），所以不用装 `ws`。`mp-e2e.mjs` 走 CDP 真实时间驱动（`--virtual-time-budget` 会把时间快进掉，消息来不及到），配合 `?fast=1` 把整局压进十几秒。跑之前先 `taskkill /IM msedge.exe /F` 清掉僵尸实例，否则端口会抢。
+
 
 ## 目录约定
 
@@ -119,18 +161,23 @@ node tools/selftest.mjs --verbose   # 附带落格覆盖率和排版告警
 `deploy/` 与源码同构，是运行副本。改动源码后需同步：
 
 ```bash
-cp -r game deploy/game && cp -r lobby deploy/lobby
+node tools/sync-deploy.mjs
 ```
+
+（等价于 `cp -r index.html lobby game assets deploy/`，只是跨平台不依赖 shell。忘了同步也不会玩到旧版——`server.py` 优先服务仓库根目录的源码，`deploy/` 副本主要给「只想拷一个目录走」的场景。）
 
 ## 技术说明
 
 - 存档走 `localStorage`，key 为 v3 格式（含模块状态），旧版存档不会误读
 - 骰子为纯 CSS 3D 立方体，翻面由 `transform` 过渡驱动，落点角度始终为 90° 整数倍
+- 联机后端是**零依赖** Python：`http.server` 之上自己实现 WebSocket（`Sec-WebSocket-Accept` 握手、FIN/opcode/mask/126/127 长度解码、ping/pong/close），不装 `websockets` 也不装 Flask。服务端只维护 `Lobby → Room → Seat` 三张表，不碰游戏规则
+- 快照节流 150ms（`renderPlayers` 末尾触发），`Game._applying` 标志抑制「套用快照→重绘→再广播」的回环
 - 视觉素材来自 [Kenney Board Game Icons](https://kenney.nl/assets/board-game-icons)（CC0 协议），通过 CSS mask 染色
 
 ## 已知限制
 
-- 尚无在线 PVP，需要 WebSocket 房间制后端
+- 联机只做房间制，**没有匹配、没有观战、没有断线托管**；行动者掉线则整局停在等他的回合（刷新可重连顶号）
+- 跨公网需要自己做端口转发或内网穿透，仓库里没有内置 TLS/鉴权，别直接暴露到公网
 - 手机竖屏未做专项适配，横屏体验较好
 - 无音效
 

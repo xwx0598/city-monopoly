@@ -19,7 +19,13 @@
   renderPlayers();
   positionTokens();
   updateRound();
-  $('modeLabel').textContent = (GAME_MODE === 'ai' ? '单机 vs AI' : `本地同屏 ${HOTSEAT_N} 人`) + ` · ${MAP.name} · 本地存档`;
+  $('modeLabel').textContent = (GAME_MODE === 'ai' ? '单机 vs AI' : GAME_MODE === 'mp' ? `联机 · 房间 ${MP_ROOM || '?'}` : `本地同屏 ${HOTSEAT_N} 人`) + ` · ${MAP.name} · ${GAME_MODE === 'mp' ? '状态实时同步' : '本地存档'}`;
+
+  // 联机：交易需要对方即时确认，现阶段先收起来
+  if (GAME_MODE === 'mp'){
+    const tradeBtn = $('tradeBtn');
+    if (tradeBtn) tradeBtn.classList.add('hidden');
+  }
 
   function fitBoard(){
     const wrap = $('boardWrap');
@@ -94,12 +100,12 @@
     };
     $('resumeNo').onclick = () => { clearSave(); location.reload(); };
   } else {
-    $('rollBtn').disabled = false;
     log(`🗺️ 地图：${MAP.name}（${TILES.length} 格，${TILES.filter(t => t.type === 'prop').length} 块地产）`);
-    log(`🎮 对局开始！${GAME_MODE === 'ai' ? `你和 ${AI_COUNT} 位 AI 各有 ¥1500` : `${HOTSEAT_N} 位玩家各 ¥1500`}，30 回合内总资产最高者获胜。`);
+    log(`🎮 对局开始！${GAME_MODE === 'ai' ? `你和 ${AI_COUNT} 位 AI 各有 ¥1500` : `${players.length} 位玩家各 ¥1500`}，30 回合内总资产最高者获胜。`);
     log('🏗️ 买下地产后点「资产管理」可升级（同组均衡建设）、抵押或出售；抵押中免收租，赎回加 10% 利息。');
-    log(`💾 每回合自动存档，中途退出后可继续对局。`);
+    log(GAME_MODE === 'mp' ? '🌐 联机对局：轮到你时才能掷骰，其他玩家的行动会实时同步过来。' : '💾 每回合自动存档，中途退出后可继续对局。');
     Game.onStart.forEach(f => { try { f(); } catch(e){} });
+    if (GAME_MODE === 'mp') updateTurnUi();
     updateBuildBtn();
   }
 

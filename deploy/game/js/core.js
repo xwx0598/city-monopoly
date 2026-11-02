@@ -45,12 +45,62 @@ window.Game = {
   ai: null,           // AI 决策策略，模块可整体替换（见下方默认实现）
   applyMap: null,     // 由 core 提供
   DEFAULT_MAP: null,  // 核心内置地图（模块未加载时兜底）
+  _applying: false,   // 联机套用远端状态时为真，抑制同步回环
+
+  // ---- 联机：全量状态快照与套用（结构与本地存档 v2 相同，模块状态走 mods 字段）----
+  snapshot(){
+    const mods = {};
+    Game.saveExtras.forEach(f => { try { Object.assign(mods, f()); } catch(e){} });
+    return {
+      players: players.map(p => ({ money:p.money, pos:p.pos, props:[...p.props], bankrupt:p.bankrupt, skip:p.skip || 0, jail:p.jail || 0, jailCard:p.jailCard || 0, insured:p.insured || 0 })),
+      tileOwner: { ...tileOwner },
+      levels: { ...tileLevel },
+      mortgaged: { ...tileMortgaged },
+      turn, round, over: gameOver, mods,
+    };
+  },
+  applyState(st){
+    if (!st || !Array.isArray(st.players) || st.players.length !== players.length) return false;
+    st.players.forEach((sp, i) => {
+      const p = players[i];
+      p.money = sp.money;
+      p.pos = sp.pos;
+      p.props = [...(sp.props || [])];
+      p.bankrupt = !!sp.bankrupt;
+      p.skip = sp.skip || 0;
+      p.jail = sp.jail || 0;
+      p.jailCard = sp.jailCard || 0;
+      p.insured = sp.insured || 0;
+    });
+    tileOwner = { ...(st.tileOwner || {}) };
+    tileLevel = { ...(st.levels || {}) };
+    tileMortgaged = { ...(st.mortgaged || {}) };
+    turn = st.turn | 0;
+    round = st.round | 0;
+    // 对手先到终局：本地也要走一次 endGame（弹终局面板、飘彩带），状态保持一致
+    if (st.over && !gameOver) endGame();
+    gameOver = gameOver || !!st.over;
+    if (st.mods) Game.loadExtras.forEach(f => { try { f({ mods: st.mods }); } catch(e){} });
+    if (TILES.length){
+      for (let i = 0; i < TILES.length; i++) refreshTile(i);
+      renderPlayers(); positionTokens(); updateRound();
+    }
+    updateTurnUi();
+    // 轮到我且我在蹲监狱：由我的客户端接管监狱流程（保释 / 掷骰）
+    if (GAME_MODE === 'mp' && turn === MP_SEAT && players[turn] && players[turn].jail > 0 && !busy && !gameOver){
+      busy = true;
+      handleJailTurn(turn);
+    }
+    return true;
+  },
 };
 
 // ================= 基础数据 =================
 const QS = new URLSearchParams(location.search);
-const GAME_MODE = QS.get('mode') === 'hotseat' ? 'hotseat' : 'ai';
+const GAME_MODE = ['hotseat', 'mp'].includes(QS.get('mode')) ? QS.get('mode') : 'ai';
 const HOTSEAT_N = Math.min(4, Math.max(2, parseInt(QS.get('n')) || 2));
+const MP_ROOM = QS.get('room') || '';            // 联机房间号（仅 mode=mp）
+const MP_SEAT_QS = parseInt(QS.get('seat'), 10); // 联机房间座位号
 const PLAYER_COLORS = ['#6E8598', '#B08968', '#B5806F', '#8E86A0'];
 const START_MONEY = 1500, SALARY = 200, MAX_ROUNDS = 30;
 const MAX_LEVEL = 3;
@@ -64,6 +114,7 @@ const GROUP_COLORS = { A:'#8E86A0', B:'#8FA6B8', C:'#C39B7E', D:'#98A99B', E:'#B
   casino:'#A9738A', police:'#6E8598', insurance:'#7E9C8F', auction:'#A9885C' };
 
 // ================= 玩家 =================
+let MP_SEAT = -1;          // 联机：我在对局里的玩家下标（mode=mp 时由座位表推算）
 const players = [];
 const mkPlayer = (name, color, isAI) => ({ name, color, money:START_MONEY, pos:0, props:[], bankrupt:false, skip:0, jail:0, jailCard:0, isAI });
 if (GAME_MODE === 'ai'){
@@ -71,6 +122,13 @@ if (GAME_MODE === 'ai'){
   for (let k = 0; k < AI_COUNT; k++){
     players.push(mkPlayer(AI_NAMES[k], PLAYER_COLORS[(k + 1) % 4], true));
   }
+} else if (GAME_MODE === 'mp'){
+  // 联机：?seats=0,2,3 是房间座位号，?names= 与之按顺序对应；?seat= 是我的座位
+  const seats = (QS.get('seats') || '0,1').split(',').map(n => parseInt(n, 10)).filter(n => Number.isFinite(n));
+  const names = (QS.get('names') || '').split('|');
+  seats.forEach((s, k) => players.push(mkPlayer(names[k] || `玩家 ${s + 1}`, PLAYER_COLORS[k % 4], false)));
+  MP_SEAT = seats.indexOf(Number.isFinite(MP_SEAT_QS) ? MP_SEAT_QS : seats[0]);
+  if (MP_SEAT < 0) MP_SEAT = 0;
 } else {
   for (let k = 0; k < HOTSEAT_N; k++){
     players.push(mkPlayer(`玩家 ${k+1}`, PLAYER_COLORS[k], false));
@@ -84,16 +142,20 @@ let turn = 0, round = 1, gameOver = false, busy = false;
 let lastRoll = 7;          // 最近一次骰子总点（自定义租金公式的模块可能用）
 let doubleStreak = 0;      // 连续掷出双数的次数（三连入狱）
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+// 动画节奏：?fast=1 把所有等待压到 15%（联机 E2E 用真实时间跑完整局时提速）
+const FAST = QS.get('fast') === '1';
+const T = ms => (FAST ? Math.max(0, Math.round(ms * 0.15)) : ms);
+const sleep = ms => new Promise(r => setTimeout(r, T(ms)));
 const $ = id => document.getElementById(id);
 // 图标：内联 SVG（见 js/icons.js）
 const icon = (name, cls = '', style = '') => mbIcon(name, cls, null, style);
 
 // ================= 存档 =================
-const SAVE_KEY = 'monopoly_save_v3_' + (GAME_MODE === 'ai' ? 'ai' : 'hotseat' + HOTSEAT_N);
+const SAVE_KEY = 'monopoly_save_v3_' + (GAME_MODE === 'ai' ? 'ai' : GAME_MODE === 'mp' ? 'mp_' + MP_ROOM : 'hotseat' + HOTSEAT_N);
 
 function saveGame(){
   if (gameOver) return;
+  if (GAME_MODE === 'mp') return;    // 联机对局状态由广播同步，不落本地存档
   try {
     const mods = {};
     // 单个模块的 saveExtras 抛错只跳过它自己，不能连累整份自动存档
@@ -325,6 +387,8 @@ function renderPlayers(){
   }).join('');
   Game.afterRender.forEach(f => { try { f(); } catch(e){} });
   updateBuildBtn();
+  // 联机：几乎所有状态变化最后都会走这里，统一在此触发快照广播（mp.js 做节流）
+  if (GAME_MODE === 'mp' && !Game._applying && window.MPNet) MPNet.sync();
 }
 
 function log(msg, cls = ''){
@@ -365,6 +429,20 @@ function highlightTile(i, on){
 }
 
 function updateRound(){ $('roundInfo').textContent = `第 ${round} / ${MAX_ROUNDS} 回合`; }
+
+// ---- 联机回合锁：只有当前行动者的客户端才允许操作 ----
+function mpMine(){ return GAME_MODE !== 'mp' || turn === MP_SEAT; }
+
+function updateTurnUi(){
+  const p = players[turn];
+  if (!p || !$('turnInfo')) return;
+  const mine = mpMine();
+  if (GAME_MODE === 'mp' && !mine) $('turnInfo').textContent = `等待 ${p.name} 操作…`;
+  else if (p.isAI) $('turnInfo').textContent = `${p.name} 思考中…`;
+  else $('turnInfo').textContent = `轮到 ${p.name} 行动`;
+  $('rollBtn').disabled = p.isAI || !mine || busy || gameOver;
+  updateBuildBtn();
+}
 
 // ================= 骰子（CSS 3D 立方体） =================
 const PIP_MAP = {
@@ -458,8 +536,8 @@ function spinDie(el, n, dur = 880, delay = 0){
 // 两颗骰子错开 70ms、时长不同，避免"齐步走"的机械感
 async function spinDice(d1, d2){
   await Promise.all([
-    spinDie($('die1'), d1, 860),
-    spinDie($('die2'), d2, 940, 70),
+    spinDie($('die1'), d1, T(860)),
+    spinDie($('die2'), d2, T(940), T(70)),
   ]);
   lastRoll = d1 + d2;
   return [d1, d2];
@@ -720,7 +798,7 @@ function updateBuildBtn(){
   const btn = $('buildBtn');
   if (!btn) return;
   const p = players[turn];
-  const canAct = !gameOver && !busy && p && !p.isAI && !p.bankrupt;
+  const canAct = !gameOver && !busy && p && !p.isAI && !p.bankrupt && mpMine();
   const cands = p ? p.props.filter(i => TILES[i].type === 'prop' && canBuildAt(turn, i)) : [];
   const hasAssets = p && p.props.length > 0;   // 有资产就能进弹窗（抵押/赎回/卖房也算操作）
   btn.disabled = !canAct || (!cands.length && !hasAssets);
@@ -848,7 +926,9 @@ async function ownableLanding(pi, i){
         refreshTile(i); renderPlayers();
       } else {
         log(`${p.name} 放弃了购买「${t.name}」`);
-        await runAuction(i, pi);
+        // 联机：拍卖要多人同时出价，现阶段先跳过，地块保持无主
+        if (GAME_MODE === 'mp') log('🤝 联机模式暂不开放拍卖，地块保持无主');
+        else await runAuction(i, pi);
       }
     }
   } else if (tileOwner[i] !== pi){
@@ -1165,7 +1245,7 @@ async function handleJailTurn(pi){
 
 // ================= 回合驱动 =================
 async function rollDice(){
-  if (busy || gameOver) return;
+  if (busy || gameOver || !mpMine()) return;
   busy = true;
   $('rollBtn').disabled = true;
   updateBuildBtn();
@@ -1230,6 +1310,11 @@ function nextStep(samePlayer){
   const p = players[turn];
   if (p.bankrupt){ nextStep(false); return; }
   if (p.jail > 0){
+    // 联机：蹲监狱的是别人时，流程由对方客户端接管（收到快照后自己走监狱分支）
+    if (GAME_MODE === 'mp' && !mpMine()){
+      updateTurnUi();
+      return;
+    }
     busy = true;
     updateBuildBtn();
     handleJailTurn(turn);
@@ -1238,6 +1323,10 @@ function nextStep(samePlayer){
   Game.turnStart.forEach(f => { try { f(turn); } catch(e){} });   // 回合开始（道具/任务模块在此行动）
   saveGame();
   renderPlayers();
+  if (GAME_MODE === 'mp'){
+    updateTurnUi();
+    return;                       // updateTurnUi 内部已按「是否轮到我」设置按钮
+  }
   $('turnInfo').textContent = p.isAI ? `${p.name} 思考中…` : `轮到 ${p.name} 行动`;
   if (p.isAI){
     busy = true;
@@ -1278,6 +1367,7 @@ function endGame(){
   $('gameOverModal').classList.remove('hidden');
   updateBuildBtn();
   confetti();
+  if (GAME_MODE === 'mp' && window.MPNet) MPNet.sync(true);   // 终局状态立即广播
 }
 
 function confetti(){

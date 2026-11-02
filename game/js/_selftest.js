@@ -138,7 +138,8 @@
   }
 
   // ---------- 存档回读（第 3 回合做一次，避免每回合写盘拖慢） ----------
-  let saveChecked = false;
+  // 联机对局不落本地存档（状态走网络同步），跳过这一组断言
+  let saveChecked = GAME_MODE === 'mp';
   const SAVE_KEY2 = 'monopoly_save_v3_' + (GAME_MODE === 'ai' ? 'ai' : 'hotseat' + HOTSEAT_N);
   function checkSave(){
     if (saveChecked || gameOver || round < 3) return;
@@ -372,6 +373,8 @@
 
     // 死锁保护：60 秒虚拟时间没有任何状态变化就收尾，别把 --virtual-time-budget 耗干
     if (tickCount - lastProgress > 1500){
+      // 联机：等待对手行动不算卡死（对手可能在做一长串操作），把计时往后推
+      if (GAME_MODE === 'mp' && turn !== MP_SEAT){ lastProgress = tickCount; return; }
       // 留一份现场：卡在哪个弹窗、按钮状态、最后几条日志，方便直接定位
       const open = OVERLAYS.filter(id => { const el = document.getElementById(id); return el && !el.classList.contains('hidden'); });
       const rb = document.getElementById('rollBtn');

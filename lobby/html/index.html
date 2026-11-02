@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>城市大富翁 · 游戏大厅</title>
-<link rel="stylesheet" href="../css/lobby.css?v=20261103b">
+<link rel="stylesheet" href="../css/lobby.css?v=20261103c">
 </head>
 <body>
 <div class="hero">
@@ -43,10 +43,10 @@
     <div class="card mode-card p4">
       <div class="top"></div>
       <div class="icon"><svg class="ico" data-ic="award" viewBox="-32 -32 64 64" style="width:30px;height:30px"></svg></div>
-      <h3>在线联机对战</h3>
-      <p>与远程好友实时对战，需要房间服务器同步状态，正在规划中。</p>
-      <div class="mode-sum off">开发中</div>
-      <div class="acts"><span class="btn dim">敬请期待</span></div>
+      <h3>联机对战</h3>
+      <p>同一 Wi-Fi 建个房间，把房间码发给朋友，2~4 人同盘对战。</p>
+      <div class="mode-sum" id="sumOnline">局域网房间 · 2~4 人 · 无 AI</div>
+      <div class="acts"><button class="btn" id="goOnline" data-mode="online">进入联机大厅 →</button></div>
     </div>
   </div>
 
@@ -170,6 +170,90 @@
   </div>
 </div>
 
+<!-- ========== 联机大厅：房间列表 ========== -->
+<div class="view hidden" id="viewRooms">
+  <div class="setup-head">
+    <button class="back-btn" id="roomsBack">← 换模式</button>
+    <span class="setup-title">联机大厅</span>
+    <span class="setup-hint">同一 Wi-Fi 下输入同一个网址就能互相看到房间</span>
+  </div>
+
+  <div class="setup">
+    <div class="sec">
+      <div class="sec-head">
+        <span class="sec-ico">👤</span><span class="sec-label">你的昵称</span>
+        <span class="sec-tip">同桌玩家会看到这个名字</span>
+      </div>
+      <div class="create-row">
+        <input id="nickInput" class="field nick" maxlength="8" placeholder="输入昵称" autocomplete="off">
+        <span class="conn-dot" id="connDot"><i></i><b>连接中…</b></span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head">
+        <span class="sec-ico">🏠</span><span class="sec-label">创建房间</span>
+        <span class="sec-tip">地图与玩法由房主决定</span>
+      </div>
+      <div class="create-row">
+        <input id="roomName" class="field room-name" maxlength="16" placeholder="房间名（可不填）" autocomplete="off">
+        <div class="seg" id="segRoomMax">
+          <button data-v="2">2 人</button><button data-v="3">3 人</button><button data-v="4">4 人</button>
+        </div>
+      </div>
+      <div class="create-row wrap">
+        <div class="seg" id="segRoomMap">
+          <button data-v="classic">经典小城</button><button data-v="mini">迷你快棋</button>
+          <button data-v="metro">繁华都会</button><button data-v="random">随机岛屿</button>
+        </div>
+      </div>
+      <div class="presets" id="roomPresetRow">
+        <button data-preset="none">纯经典<small>只跑核心规则</small></button>
+        <button data-preset="std">标准<small>羁绊 + 天气 + 道具 + 悬赏</small></button>
+        <button data-preset="chaos">大乱斗<small>全开（联机自动关掉需多人确认的玩法）</small></button>
+      </div>
+      <button class="create-btn" id="createBtn">创建房间</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head">
+        <span class="sec-ico">📋</span><span class="sec-label">房间列表</span>
+        <span class="sec-count" id="roomCount">0 个房间</span>
+        <button class="sec-clear" id="refreshRooms">刷新</button>
+      </div>
+      <div class="room-list" id="roomList"><p class="room-empty">正在连接房间服务…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 房间内：座位与准备 ========== -->
+<div class="view hidden" id="viewRoom">
+  <div class="setup-head">
+    <button class="back-btn" id="roomBack">← 退出房间</button>
+    <span class="setup-title" id="roomTitle">房间</span>
+    <span class="setup-hint" id="roomHint"></span>
+  </div>
+
+  <div class="setup">
+    <div class="sec">
+      <div class="sec-head">
+        <span class="sec-ico">🎫</span><span class="sec-label">房间码</span>
+        <span class="sec-count big" id="roomCode">----</span>
+        <button class="sec-clear" id="copyCode">复制房间码</button>
+        <span class="sec-tip" id="roomOptsTip"></span>
+      </div>
+      <div class="seat-grid" id="seatGrid"></div>
+    </div>
+
+    <div class="sec room-actions">
+      <button class="start-btn room-start" id="readyBtn">准备</button>
+      <button class="start-btn room-start hidden" id="beginBtn">开始对局</button>
+    </div>
+  </div>
+
+  <p class="room-note" id="roomNote">联机时「交易 / 拍卖 / 表决 / 探监放贷」暂不开放，其余玩法照常；轮到你时才能操作。</p>
+</div>
+
 <div class="foot">
   局域网访问：把地址栏里的 localhost 换成本机内网 IP（Windows 用 ipconfig 查看）<br>
   <span style="color:rgba(255,253,247,.62)">存档保存在各设备的浏览器本地，每个模式独立存档、自动保存</span>
@@ -229,6 +313,7 @@
 </div>
 
 <script src="../js/icons.js"></script>
-<script src="../js/lobby.js?v=20261102g"></script>
+<script src="../js/lobby.js?v=20261103c"></script>
+<script src="../js/net.js?v=20261103c"></script>
 </body>
 </html>

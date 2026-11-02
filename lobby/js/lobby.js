@@ -64,10 +64,13 @@ let SETUP_MODE = 'ai';        // 'ai' | 'hotseat'
 let HOTSEAT_N = 2;
 
 function showView(name){
-  const isSetup = name === 'setup';
+  const isSetup = ['setup', 'rooms', 'room'].includes(name);
   document.body.classList.toggle('setup-mode', isSetup);
-  document.getElementById('viewMode').classList.toggle('hidden', isSetup);
-  document.getElementById('viewSetup').classList.toggle('hidden', !isSetup);
+  const map = { mode:'viewMode', setup:'viewSetup', rooms:'viewRooms', room:'viewRoom' };
+  Object.keys(map).forEach(k => {
+    const el = document.getElementById(map[k]);
+    if (el) el.classList.toggle('hidden', k !== name);
+  });
   window.scrollTo({ top: 0 });
 }
 
@@ -92,7 +95,10 @@ function showModePicker(){
 }
 
 document.querySelectorAll('[data-mode]').forEach(b => {
-  b.addEventListener('click', () => showSetup(b.dataset.mode, b.dataset.mode === 'hotseat' ? HOTSEAT_N : 0));
+  b.addEventListener('click', () => {
+    if (b.dataset.mode === 'online'){ if (window.MPLobby) MPLobby.enter(); return; }
+    showSetup(b.dataset.mode, b.dataset.mode === 'hotseat' ? HOTSEAT_N : 0);
+  });
 });
 document.getElementById('backBtn').addEventListener('click', showModePicker);
 
@@ -378,6 +384,7 @@ syncSegs();
   const h = location.hash;
   if (h === '#rules'){ openRules(); return; }
   if (h === '#ai'){ showSetup('ai'); return; }
+  if (h === '#online'){ if (window.MPLobby) MPLobby.enter(); return; }
   const m = /^#setup=(ai|hotseat[2-4])$/.exec(h);
   if (!m) return;
   if (m[1] === 'ai') showSetup('ai');

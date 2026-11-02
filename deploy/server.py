@@ -18,6 +18,8 @@ import threading
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
+import mp
+
 ROOT = None  # 见 pick_root()
 DEFAULT_PORT = 8686
 PORT_TRIES = 12
@@ -42,6 +44,13 @@ def pick_root():
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=ROOT, **kwargs)
+
+    def do_GET(self):
+        # /ws 交给联机模块（房间 + 状态转发），其余走静态文件
+        if self.path.split("?")[0].rstrip("/") == "/ws":
+            mp.serve(self)
+            return
+        super().do_GET()
 
     def end_headers(self):
         # no-cache = 允许缓存但每次都要向服务器确认（配合 ETag/Last-Modified）
@@ -117,7 +126,7 @@ def main():
     if ip:
         print(f"  局域网   : http://{ip}:{port}{ENTRY}")
         print("             （手机 / 平板连同一个 Wi-Fi 即可加入）")
-    if port != DEFAULT_PORT:
+    if port != base:
         print("")
         print(f"  提示：{DEFAULT_PORT} 被占用（可能是上次开的服务器窗口还在），")
         print(f"        本次已自动改用 {port}。旧窗口可以直接关掉。")
