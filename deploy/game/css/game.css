@@ -99,19 +99,19 @@
   .tname { position:absolute; left:2px; right:2px; font-size:10.5px; color:#3E3B34; text-align:center; line-height:1.2; }
   #rowTop .tname { top:5px; }
   #rowBottom .tname { bottom:5px; }
-  #colRight .tname { left:22px; right:20px; top:50%; transform:translateY(-50%); font-size:10px; }
-  #colLeft .tname { left:20px; right:22px; top:50%; transform:translateY(-50%); font-size:10px; }
+  #colRight .tname, #colLeft .tname { left:20px; right:20px; top:7px; transform:none; font-size:10px; line-height:1.2; max-height:26px; overflow:hidden; }
   .tprice { position:absolute; font-size:9px; color:#A29D90; }
   #rowTop .tprice { top:19px; left:0; right:0; text-align:center; }
   #rowBottom .tprice { bottom:20px; left:0; right:0; text-align:center; }
-  #colRight .tprice, #colLeft .tprice { display:none; }
+  #colRight .tprice { bottom:6px; left:20px; right:4px; top:auto; text-align:right; }
+  #colLeft .tprice { bottom:6px; left:4px; right:20px; top:auto; text-align:left; }
   .cname { text-align:center; font-size:10px; line-height:1.35; color:#3E3B34; }
   .mini { width:18px; height:18px; margin-top:2px; }
   .temoji { font-size:17px; line-height:1; margin-top:2px; }
-  /* 侧列格子只有 90×50，图标会压住文字，直接隐藏只保留名称 */
+  /* 侧列格子的 mini 图标与文字纵向错开：名称在顶部、图标居中偏下 */
   #colRight .temoji, #colLeft .temoji { display:none; }
-  #colRight .mini { position:absolute; left:15px; top:50%; margin-top:-9px; margin-bottom:0; }
-  #colLeft .mini { position:absolute; right:15px; top:50%; margin-top:-9px; margin-bottom:0; }
+  #colRight .mini { position:absolute; left:15px; top:60%; margin-top:-9px; margin-bottom:0; }
+  #colLeft .mini { position:absolute; right:15px; top:60%; margin-top:-9px; margin-bottom:0; }
   .tile.corner { padding-bottom:22px; }
 
   .owner-dot { position:absolute; width:9px; height:9px; border-radius:50%; box-shadow:0 0 0 1.5px #FBF8F2; }
@@ -311,8 +311,8 @@
   .mtg-mark { position:absolute; font-size:8px; line-height:1.5; background:#8B8779; color:#FBF8F2; border-radius:4px; padding:0 4px; z-index:2; }
   #rowTop .mtg-mark { bottom:14px; left:3px; }
   #rowBottom .mtg-mark { top:14px; left:3px; }
-  #colRight .mtg-mark { top:4px; left:20px; }
-  #colLeft .mtg-mark { top:4px; right:20px; }
+  #colRight .mtg-mark { bottom:4px; left:20px; top:auto; }
+  #colLeft .mtg-mark { bottom:4px; right:20px; top:auto; }
 
   #gameOverModal .modal { width:min(400px,92vw); }
   #gameOverModal h3 { font-size:22px; margin-bottom:10px; }
