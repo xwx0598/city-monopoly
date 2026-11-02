@@ -24,12 +24,12 @@ Game.use('maps', () => {
         { type:'prop',    name:'中心百货', group:'C', price:1000 },
         { type:'police',  name:'交警临检' },
         { type:'prop',    name:'天际大厦', group:'C', price:1000 },
-        { type:'chance',  name:'机会' },
+        { type:'auction', name:'拍卖行', emoji:'🔨' },
         { type:'station', name:'中央车站', price:800 },
         { type:'prop',    name:'金融街',   group:'C', price:1100 },
         { type:'bonus',   name:'奖励格' },
         { type:'prop',    name:'科技园',   group:'D', price:1200 },
-        { type:'tax',     name:'税收' },
+        { type:'insurance', name:'保险代理', emoji:'🛡️' },
         { type:'prop',    name:'王朝酒店', group:'D', price:1400 },
       ]},
     classic: { id:'classic', name:'经典小城', desc:'24 格 · 4 组地产 · 25 分局',
@@ -44,7 +44,7 @@ Game.use('maps', () => {
         { type:'prop',    name:'码头仓库', group:'B', price:800 },
         { type:'tax',     name:'税收' },
         { type:'prop',    name:'海风旅馆', group:'B', price:800 },
-        { type:'chance',  name:'机会' },
+        { type:'auction', name:'拍卖行', emoji:'🔨' },
         { type:'prop',    name:'灯塔广场', group:'B', price:900 },
         { type:'parking', name:'免费停车' },
         { type:'prop',    name:'中心百货', group:'C', price:1000 },
@@ -54,7 +54,7 @@ Game.use('maps', () => {
         { type:'prop',    name:'金融街', group:'C', price:1100 },
         { type:'bonus',   name:'奖励格' },
         { type:'prop',    name:'科技园', group:'D', price:1200 },
-        { type:'tax',     name:'税收' },
+        { type:'insurance', name:'保险代理', emoji:'🛡️' },
         { type:'prop',    name:'电视塔', group:'D', price:1200 },
         { type:'station', name:'机场快线', price:800 },
         { type:'prop',    name:'王朝酒店', group:'D', price:1400 },
@@ -81,11 +81,11 @@ Game.use('maps', () => {
         { type:'prop',    name:'中心百货', group:'C', price:1000 },
         { type:'police',  name:'交警临检' },
         { type:'prop',    name:'天际大厦', group:'C', price:1000 },
-        { type:'chance',  name:'机会' },
+        { type:'auction', name:'拍卖行', emoji:'🔨' },
         { type:'prop',    name:'金融街',   group:'C', price:1100 },
         { type:'bonus',   name:'奖励格' },
         { type:'prop',    name:'科技园',   group:'D', price:1200 },
-        { type:'tax',     name:'税收' },
+        { type:'insurance', name:'保险代理', emoji:'🛡️' },
         { type:'prop',    name:'电视塔',   group:'D', price:1200 },
         { type:'station', name:'机场快线', price:800 },
         { type:'prop',    name:'王朝酒店', group:'D', price:1400 },
@@ -125,6 +125,10 @@ Game.use('maps', () => {
     for (let k = 0; k < nCasino; k++) specials.push({ type:'casino', name:'幸运赌场' });
     const nPolice = Math.max(1, Math.floor(TOTAL / 28));
     for (let k = 0; k < nPolice; k++) specials.push({ type:'police', name:'交警临检' });
+    if (TOTAL >= 24){
+      specials.push({ type:'insurance', name:'保险代理', emoji:'🛡️' });
+      specials.push({ type:'auction',   name:'拍卖行',   emoji:'🔨' });
+    }
 
     const nProps = edgeIdx.length - specials.length;
     const perGroup = Math.floor(nProps / groups.length);

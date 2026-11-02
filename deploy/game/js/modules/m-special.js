@@ -6,12 +6,12 @@
 Game.use('special-tiles', () => {
   let pool = 0;   // 奖池：税款与赌场罚金入池，免费停车格卷走
 
-  // ---- 税收：资产 10%（上限 ¥100）入奖池 ----
+  // ---- 税收：资产 10%（上限 ¥100）入奖池（保险免单时按实扣金额入池） ----
   Game.tileHandlers.tax = async (pi) => {
     const p = players[pi];
     const amt = Math.min(100, Math.floor(netWorth(p) * 0.1), p.money);
-    await pay(pi, null, amt, '缴纳税款');
-    pool += amt;
+    const paid = await pay(pi, null, amt, '缴纳税款');
+    pool += paid;
   };
 
   // ---- 幸运赌场：40% +100 / 32% 输150入池 / 28% 平（期望略负，小赌怡情） ----
@@ -27,8 +27,8 @@ Game.use('special-tiles', () => {
       log(`🎰 ${p.name} 在赌场中了大奖，+¥100`, 'good');
     } else if (r < 0.72){
       const loss = Math.min(150, Math.max(0, p.money));
-      pool += loss;
-      await pay(pi, null, loss, '赌场失利，损失');
+      const paid = await pay(pi, null, loss, '赌场失利，损失');
+      pool += paid;   // 保险免单时 paid=0，奖池不凭空进钱
       await showNotice(pi, '🎰 幸运赌场', `运气不佳，输了 ¥${loss}（罚金计入奖池）。`);
     } else {
       await showNotice(pi, '🎰 幸运赌场', '不输不赢，全身而退。');

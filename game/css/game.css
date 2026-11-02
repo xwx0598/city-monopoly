@@ -325,3 +325,18 @@
     .sidebar { width:100%; }
     #log { height:120px; flex:0 0 auto; }
   }
+
+/* ============ 对局统计面板（m-stats） ============ */
+#statsBody { max-height: 62vh; overflow: auto; text-align: left; }
+.stat-sec { margin: 12px 0 6px; font-size: 13px; font-weight: 700; color: #2C2A26; }
+.stat-sec:first-child { margin-top: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: #2C2A26; }
+.rank-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 12.5px; color: #2C2A26; }
+.rank-row.broke { opacity: .55; }
+.rank-name { width: 74px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-track { flex: 1; height: 9px; border-radius: 5px; background: #E7E1D2; overflow: hidden; }
+.rank-bar { height: 100%; border-radius: 5px; min-width: 3px; }
+.rank-val { width: 64px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.mono-row { display: flex; align-items: center; gap: 7px; margin: 5px 0; font-size: 12.5px; color: #2C2A26; }
+.mono-group { color: #FFFDF7; font-size: 10.5px; padding: 1px 7px; border-radius: 8px; flex: none; }

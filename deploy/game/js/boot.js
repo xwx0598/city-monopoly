@@ -49,6 +49,7 @@
       players[i].skip = sp.skip || 0;
       players[i].jail = sp.jail || 0;
       players[i].jailCard = sp.jailCard || 0;
+      players[i].insured = sp.insured || 0;
     });
     tileOwner = { ...sv.tileOwner };
     tileLevel = { ...(sv.levels || {}) };

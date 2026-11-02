@@ -28,6 +28,8 @@ window.Game = {
   loadExtras: [],     // fn(save)，读档时恢复模块状态
   beforeBoard: [],    // fn(bootSave)，棋盘渲染前（地图模块在此决定用哪张图）
   onStart: [],        // fn()，新对局开始时
+  onRound: [],        // fn(newRound)，回合数递增时（新一轮即将开始，上一个完整回合已结束）
+  payWaivers: [],     // fn(from, to, amount, reason)=>null 表示本次付款全额免除（保险模块用）
   ai: null,           // AI 决策策略，模块可整体替换（见下方默认实现）
   applyMap: null,     // 由 core 提供
   DEFAULT_MAP: null,  // 核心内置地图（模块未加载时兜底）
@@ -47,7 +49,7 @@ const AI_COUNT = GAME_MODE === 'ai' ? Math.min(3, Math.max(1, parseInt(QS.get('a
 
 const GROUP_COLORS = { A:'#8E86A0', B:'#8FA6B8', C:'#C39B7E', D:'#98A99B', E:'#B98D8D',
   station:'#8B8779', utility:'#C79E6E', chance:'#B08968', tax:'#A9605A', bonus:'#AD8A55',
-  casino:'#A9738A', police:'#6E8598' };
+  casino:'#A9738A', police:'#6E8598', insurance:'#7E9C8F', auction:'#A9885C' };
 
 // ================= 玩家 =================
 const players = [];
@@ -85,7 +87,7 @@ function saveGame(){
     Game.saveExtras.forEach(f => Object.assign(mods, f()));
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 2, mode: GAME_MODE, savedAt: Date.now(), round, turn,
-      players: players.map(p => ({ money:p.money, pos:p.pos, props:[...p.props], bankrupt:p.bankrupt, skip:p.skip || 0, jail:p.jail || 0, jailCard:p.jailCard || 0 })),
+      players: players.map(p => ({ money:p.money, pos:p.pos, props:[...p.props], bankrupt:p.bankrupt, skip:p.skip || 0, jail:p.jail || 0, jailCard:p.jailCard || 0, insured:p.insured || 0 })),
       tileOwner: { ...tileOwner },
       levels: { ...tileLevel },
       mortgaged: { ...tileMortgaged },
@@ -211,6 +213,11 @@ function buildBoard(){
     } else if (t.type === 'bonus'){
       el.innerHTML = `${icon('award', '', 'width:26px;height:26px;color:#AD8A55')}
         <div class="cname" style="margin-top:2px">奖励<br><span style="font-size:9px">+¥200</span></div>`;
+    } else if (t.emoji){
+      // 通用兜底：模块自定义地块只要带 emoji 字段就能渲染（模块关闭时落格=歇脚）
+      el.innerHTML = `<div class="cbar" style="background:${tileColor(t)}"></div>
+        <div class="tname" style="font-size:10px">${t.name}</div>
+        <div class="temoji">${t.emoji}</div>`;
     }
     $(stripOf(i)).appendChild(el);
   });
@@ -521,6 +528,15 @@ function riskLine(pi){
 
 async function pay(from, to, amount, reason, silent = false){
   const p = players[from];
+  // 免单钩子（保险模块用）：任何钩子返回 null 表示本次付款全额免除，返回值 0
+  for (const f of Game.payWaivers){
+    try {
+      if (f(from, to, amount, reason) === null){
+        log(`🛡️ ${players[from].name} 无需支付「${reason}」¥${amount}（由保险承担）`, 'good');
+        return 0;
+      }
+    } catch(e){}
+  }
   // AI 现金不够先变卖资产自救（卖房 → 卖地），避免无脑破产
   if (p.isAI && p.money < amount) aiRaiseCash(from, amount);
   // 人类玩家付不起：弹出明确的破产警告再扣款
@@ -535,6 +551,7 @@ async function pay(from, to, amount, reason, silent = false){
   log(`${players[from].name} ${reason} ¥${amount}`, 'bad');
   renderPlayers();
   checkBankrupt(from, to);
+  return amount;   // 返回实扣金额：入奖池的款项应以实际扣除数为准（保险免单时不入池）
 }
 
 function checkBankrupt(pi, creditor = null){
@@ -1142,6 +1159,7 @@ function nextStep(samePlayer){
     if (turn === players.length - 1){
       turn = 0; round++;
       updateRound();
+      Game.onRound.forEach(f => { try { f(round); } catch(e){} });   // 统计面板在此做每回合快照
       if (round > MAX_ROUNDS){ endGame(); return; }
     } else turn++;
   }
