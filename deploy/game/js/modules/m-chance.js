@@ -38,8 +38,11 @@ Game.use('chance', () => {
     log(`⚡ ${p.name} 抽到机会卡：${card.text}`, 'card');
 
     if (card.money){
-      p.money += card.money;
-      floatMoney(pi, card.money);
+      let m = card.money;
+      // 金额调整钩子（羁绊模块的事件卡减免等）
+      Game.cardMoneyFilters.forEach(f => { try { const v = f(pi, m); if (typeof v === 'number') m = Math.round(v); } catch(e){} });
+      p.money += m;
+      floatMoney(pi, m);
       renderPlayers();
     }
     if (card.effect === 'birthday'){

@@ -89,10 +89,10 @@ function syncMapOpts(){
   document.querySelectorAll('#mapOpts button').forEach(b => {
     b.classList.toggle('on', b.dataset.map === MAP_PREF);
   });
-  // 同屏对战的人数按钮始终跟随当前地图选择
+  // 同屏对战的人数按钮始终跟随当前地图选择（并带上可选玩法参数）
   document.querySelectorAll('.hotseat-opts a').forEach(a => {
     const n = a.dataset.slot.replace('hotseat', '');
-    a.href = '../../game/html/game.html?mode=hotseat&n=' + n + '&map=' + MAP_PREF + '&new=1';
+    a.href = '../../game/html/game.html?mode=hotseat&n=' + n + '&map=' + MAP_PREF + '&new=1' + modsQuery();
   });
 }
 document.getElementById('mapOpts').addEventListener('click', e => {
@@ -103,6 +103,28 @@ document.getElementById('mapOpts').addEventListener('click', e => {
   syncMapOpts();
 });
 syncMapOpts();
+
+// ============ 可选玩法开关（?mods= 参数传给对局） ============
+const MODS_KEY = 'monopoly_mods_pref';
+let MODS_PREF = (() => {
+  try { const v = JSON.parse(localStorage.getItem(MODS_KEY)); return Array.isArray(v) ? v : []; } catch(e){ return []; }
+})();
+function modsQuery(){ return MODS_PREF.length ? '&mods=' + MODS_PREF.join(',') : ''; }
+function syncModsOpts(){
+  document.querySelectorAll('#modsOpts button').forEach(b => {
+    b.classList.toggle('on', MODS_PREF.includes(b.dataset.mod));
+  });
+}
+document.getElementById('modsOpts').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const m = b.dataset.mod;
+  MODS_PREF = MODS_PREF.includes(m) ? MODS_PREF.filter(x => x !== m) : MODS_PREF.concat(m);
+  try { localStorage.setItem(MODS_KEY, JSON.stringify(MODS_PREF)); } catch(err){}
+  syncModsOpts();
+  syncMapOpts();   // 同屏入口链接要带上最新开关
+});
+syncModsOpts();
 
 // ============ 对局设置分段控件 ============
 const SEG_COLOR = { '1':'#6E7C88', '2':'#8E86A0', '3':'#B5806F', easy:'#93A0AA', normal:'#B08968', hard:'#B5806F' };
@@ -146,6 +168,7 @@ document.getElementById('aiStartBtn').addEventListener('click', () => {
     buy:AI_SETUP.buy, build:AI_SETUP.build, tactic:AI_SETUP.tactic,
     map: MAP_PREF, new:'1',
   });
+  if (MODS_PREF.length) q.set('mods', MODS_PREF.join(','));
   location.href = '../../game/html/game.html?' + q.toString();
 });
 syncSegs();
@@ -218,7 +241,9 @@ function renderSaves(){
     }
 
     const url = '../../game/html/game.html?mode=' + slot.mode + (slot.n ? '&n=' + slot.n : '')
-      + (slot.id === 'ai' && data.ai ? '&ai=' + data.ai : '') + '&autoload=1';
+      + (slot.id === 'ai' && data.ai ? '&ai=' + data.ai : '')
+      + (data.opt && data.opt !== '0' ? '&mods=' + data.opt : '')   // 续档带回开局时选的可选玩法
+      + '&autoload=1';
 
     const a = document.createElement('a');
     a.className = 'save-row';

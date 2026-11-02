@@ -7,8 +7,11 @@
 window.Game = {
   _loaded: [], _off: [], _failed: [],
   modEnabled(name){
-    if (new URLSearchParams(location.search).get('mods') === '0') return false;
-    return (window.MB_MODULES || []).includes(name);
+    const modsQ = new URLSearchParams(location.search).get('mods');
+    if (modsQ === '0') return false;                                  // ?mods=0 纯核心
+    if ((window.MB_MODULES || []).includes(name)) return true;        // 基础模块默认开
+    // ?mods=synergy,xxx 追加可选玩法模块（大厅开关 / 存档续玩传入）
+    return !!modsQ && modsQ.split(',').map(s => s.trim()).includes(name);
   },
   // 模块装载入口：一个模块的所有代码都包在这里，出错只记日志、不炸游戏
   use(name, fn){
@@ -30,6 +33,9 @@ window.Game = {
   onStart: [],        // fn()，新对局开始时
   onRound: [],        // fn(newRound)，回合数递增时（新一轮即将开始，上一个完整回合已结束）
   payWaivers: [],     // fn(from, to, amount, reason)=>null 表示本次付款全额免除（保险模块用）
+  payFilters: [],     // fn(from, to, amount, reason)=>amount，付款金额增减（羁绊的付租减免等），在免单判定后执行
+  buildCostFilters: [], // fn(pi, cost)=>cost，建造费折扣（羁绊模块用），buildCost(i, pi) 时生效
+  cardMoneyFilters: [], // fn(pi, money)=>money，事件卡正负金额调整（羁绊的事件卡减免用）
   ai: null,           // AI 决策策略，模块可整体替换（见下方默认实现）
   applyMap: null,     // 由 core 提供
   DEFAULT_MAP: null,  // 核心内置地图（模块未加载时兜底）
@@ -92,6 +98,7 @@ function saveGame(){
       levels: { ...tileLevel },
       mortgaged: { ...tileMortgaged },
       mods,
+      opt: QS.get('mods') || '',   // 开局时的可选玩法参数，续档时由大厅原样回传
     }));
   } catch(e){}
 }
@@ -461,9 +468,14 @@ function netWorth(p){
     s + (tileMortgaged[i] ? Math.round(TILES[i].price * 0.5) : TILES[i].price + buildCost(i) * (tileLevel[i] || 0)), 0);
 }
 function ownsWholeGroup(pi, group){ return TILES.every((t, i) => t.type !== 'prop' || t.group !== group || tileOwner[i] === pi); }
-function buildCost(i){
+function buildCost(i, pi){
   const t = TILES[i];
-  return t.type === 'prop' ? Math.round(t.price * 0.5) : 0;
+  let c = t.type === 'prop' ? Math.round(t.price * 0.5) : 0;
+  // 建造费折扣钩子：传入付款人 pi 才生效（资产估值仍按原价，不受折扣影响）
+  if (pi !== undefined){
+    Game.buildCostFilters.forEach(f => { try { const v = f(pi, c); if (typeof v === 'number' && v >= 0) c = v; } catch(e){} });
+  }
+  return Math.round(c);
 }
 function stationRent(ownerPi){
   const n = players[ownerPi].props.filter(i => TILES[i].type === 'station' && !tileMortgaged[i]).length;
@@ -537,6 +549,13 @@ async function pay(from, to, amount, reason, silent = false){
       }
     } catch(e){}
   }
+  // 付款金额过滤器（羁绊等模块用）：按付款方身份调整金额，在免单判定之后执行
+  for (const f of Game.payFilters){
+    try {
+      const v = f(from, to, amount, reason);
+      if (typeof v === 'number' && v >= 0) amount = Math.round(v);
+    } catch(e){}
+  }
   // AI 现金不够先变卖资产自救（卖房 → 卖地），避免无脑破产
   if (p.isAI && p.money < amount) aiRaiseCash(from, amount);
   // 人类玩家付不起：弹出明确的破产警告再扣款
@@ -585,7 +604,7 @@ function checkBankrupt(pi, creditor = null){
 // 均衡建设：垄断组内必须 1-1-1 → 2-2-2 → 3-3-3（canBuildAt 内部校验）
 function buildProperty(pi, i){
   if (!canBuildAt(pi, i)) return false;
-  const cost = buildCost(i);
+  const cost = buildCost(i, pi);
   players[pi].money -= cost;
   tileLevel[i] = (tileLevel[i] || 0) + 1;
   log(`🏗️ ${players[pi].name} 花费 ¥${cost} 将「${TILES[i].name}」升级为${LEVEL_NAME[tileLevel[i]]}`, 'good');
@@ -702,7 +721,7 @@ function openBuildModal(pi, onClose){
       return;
     }
     $('buildList').innerHTML = list.map(i => {
-      const lv = tileLevel[i] || 0, cost = buildCost(i);
+      const lv = tileLevel[i] || 0, cost = buildCost(i, pi);
       const mort = !!tileMortgaged[i];
       const mono = ownsWholeGroup(pi, TILES[i].group);
       const nowRent = mort ? 0 : Math.round(TILES[i].price * 0.1 * Math.pow(1.6, lv) * (mono ? 2 : 1));

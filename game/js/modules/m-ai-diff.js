@@ -75,13 +75,13 @@ Game.use('ai-diff', () => {
     });
 
     if (style === 'normal'){
-      if (p.money - buildCost(cands[0]) < 400) return;
+      if (p.money - buildCost(cands[0], pi) < 400) return;
       buildProperty(pi, cands[0]);
       return;
     }
 
     // hard：留 ¥500 安全垫
-    if (p.money - buildCost(cands[0]) < 500) return;
+    if (p.money - buildCost(cands[0], pi) < 500) return;
     buildProperty(pi, cands[0]);
   }
 
