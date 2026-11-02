@@ -493,7 +493,8 @@ function unmortgageCost(i){ return Math.round(TILES[i].price * 0.55); }
 // 均衡建设：必须集齐同组（垄断）才能加盖；目标地块须是组内等级最低的，且全组无抵押
 function canBuildAt(pi, i){
   if (tileOwner[i] !== pi || (tileLevel[i] || 0) >= MAX_LEVEL) return false;
-  if (players[pi].money < buildCost(i)) return false;
+  // 用折后价判断余额，否则带建造折扣（营造行会）时明明买得起也会被禁用
+  if (players[pi].money < buildCost(i, pi)) return false;
   if (!ownsWholeGroup(pi, TILES[i].group)) return false;   // 经典规则：垄断后才能建设
   const lv = tileLevel[i] || 0;
   return groupMates(i).every(j => tileOwner[j] !== pi || ((tileLevel[j] || 0) >= lv && !tileMortgaged[j]));
@@ -580,8 +581,14 @@ function checkBankrupt(pi, creditor = null){
   // 破产清算：全部地产（连房屋）与剩余现金移交债主；无债主则回归无主、建筑拆除
   const inherit = creditor !== null && creditor !== pi && !players[creditor].bankrupt;
   if (inherit){
-    p.props.forEach(i => { tileOwner[i] = creditor; refreshTile(i); });
-    if (p.money > 0){ players[creditor].money += p.money; floatMoney(creditor, p.money); p.money = 0; }
+    // 注意：必须同时写回 tileOwner 与债主的 props 数组，只改 tileOwner 会让两边失配——
+    // 失配后继承来的地不计入净资产（排行/终局判负）、不能建房/抵押/交易，站租也少算
+    p.props.forEach(i => {
+      tileOwner[i] = creditor;
+      if (!players[creditor].props.includes(i)) players[creditor].props.push(i);
+      refreshTile(i);
+    });
+    if (p.money > 0){ players[creditor].money += p.money; floatMoney(creditor, p.money); }
     log(`📦 ${p.name} 名下 ${p.props.length} 处地产及剩余现金全部移交 ${players[creditor].name}`, 'bad');
   } else {
     p.props.forEach(i => {
@@ -591,6 +598,7 @@ function checkBankrupt(pi, creditor = null){
       refreshTile(i);
     });
   }
+  p.money = 0;    // 破产者现金归零：负值保留会导致面板显示负数、结算读错
   p.props = [];
   log(`💥 ${p.name} 破产出局！`, 'bad');
   positionTokens();
@@ -834,7 +842,7 @@ async function ownableLanding(pi, i){
       const why = Game.rentReason ? Game.rentReason(i, owner) : `向 ${players[owner].name} 支付「${t.name}」租金`;
       if (!p.isAI && p.money < rent){
         // 人类玩家付不起租金：先给「变卖凑钱 / 宣告破产」的选择
-        const bust = await waitDebtChoice(rent, owner, why);
+        const bust = await waitDebtChoice(pi, rent, owner, why);
         if (bust){ await pay(pi, owner, rent, why, true); return; }
       }
       await pay(pi, owner, rent, why);
@@ -966,6 +974,7 @@ function waitBuyChoice(i, pi){
     const rentNote = Game.rentNote ? Game.rentNote(i) : `基础租金 ¥${Math.round(t.price*0.1)}`;
     const remain = p.money - t.price;
     $('buyTitle').textContent = `购买「${t.name}」？`;
+    $('buyNo').textContent = '放弃';   // 其他模块（如保险）复用过这个弹窗，进来时把文案还原
     let warn = '';
     if (remain < 0){
       $('buyYes').disabled = true;
@@ -989,24 +998,24 @@ function waitBuyChoice(i, pi){
 }
 
 // 资不抵债抉择：变卖资产凑钱（循环直到够），或宣告破产（返回 true）
-function waitDebtChoice(rent, owner, why){
+function waitDebtChoice(pi, rent, owner, why){
   return new Promise(resolve => {
     const render = () => {
       $('debtDesc').innerHTML =
-        `${why}需支付 <b style="color:#A9605A">¥${rent}</b>，但现金只有 <b>¥${players[turn].money}</b>。` +
+        `${why}需支付 <b style="color:#A9605A">¥${rent}</b>，但现金只有 <b>¥${players[pi].money}</b>。` +
         `<br><span style="font-size:12px;color:#9C9789">变卖资产凑够钱，或宣告破产——名下地产与剩余现金将全部移交 ${players[owner].name}。</span>`;
       $('debtModal').classList.remove('hidden');
     };
     $('debtSell').onclick = () => {
       $('debtModal').classList.add('hidden');
-      openBuildModal(turn, () => {
-        if (players[turn].money >= rent) resolve(false);
+      openBuildModal(pi, () => {
+        if (players[pi].money >= rent) resolve(false);
         else render();
       });
     };
     $('debtBust').onclick = () => {
       $('debtModal').classList.add('hidden');
-      log(`🚫 ${players[turn].name} 宣告破产`, 'bad');
+      log(`🚫 ${players[pi].name} 宣告破产`, 'bad');
       resolve(true);
     };
     render();
@@ -1031,8 +1040,9 @@ function showNotice(pi, title, text){
 // ================= 监狱（经典规则：保释 / 双数出狱 / 3 回合上限 / 免狱卡） =================
 const BAIL = 50;   // 保释金（入奖池，见 payBail）
 function payBail(pi, why){
-  if (Game.poolApi) Game.poolApi.add(BAIL);   // 保释金进奖池，落「免费停车」可卷走
-  return pay(pi, null, BAIL, why);
+  // 先付款再入池：付不起/被免除时不能凭空给奖池加钱（与税款、维修费口径一致）
+  const paid = pay(pi, null, BAIL, why);
+  return paid.then(v => { if (Game.poolApi && v > 0) Game.poolApi.add(v); return v; });
 }
 
 // 入狱统一入口：自动使用免狱卡，否则蹲监 3 回合
@@ -1148,6 +1158,15 @@ async function rollDice(){
 
   if (gameOver){ busy = false; return; }
 
+  // 本回合被送进监狱（交警临检 / 事件卡）：立即结束回合，不再享受双数续行，
+  // 否则「掷双数 → 落交警 → 同回合还能保释再掷」等于白嫖一次机会
+  if (p.jail > 0){
+    doubleStreak = 0;
+    busy = false;
+    nextStep(false);
+    return;
+  }
+
   if (d1 === d2 && !p.bankrupt){
     doubleStreak++;
     if (doubleStreak >= 3){
@@ -1210,7 +1229,11 @@ function endGame(){
   clearSave();
   const alive = players.map((p, i) => p.bankrupt ? null : i).filter(i => i !== null);
   let title, desc;
-  if (GAME_MODE === 'ai' && players[0].bankrupt && alive.length >= 1){
+  if (alive.length === 0){
+    // 极端情况：同归于尽（无人存活）
+    title = '全员破产';
+    desc = '所有玩家都已破产，本局无人获胜。';
+  } else if (GAME_MODE === 'ai' && players[0].bankrupt && alive.length >= 1){
     // 单机模式下玩家本人破产出局
     const winner = alive.sort((a, b) => netWorth(players[b]) - netWorth(players[a]))[0];
     title = `${players[winner].name} 获胜！`;

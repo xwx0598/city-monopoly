@@ -44,8 +44,7 @@
   $('restartBtn').onclick = () => { clearSave(); location.reload(); };
 
   function applySaveState(sv){
-    Game.loadExtras.forEach(f => { try { f(sv); } catch(e){ console.warn(e); } });
-    sv.players.forEach((sp, i) => {
+    Game.loadExtras.forEach(f => { try { f(sv); } catch(e){ console.warn(e); } });    sv.players.forEach((sp, i) => {
       players[i].money = sp.money;
       players[i].pos = sp.pos;
       players[i].props = [...sp.props];
@@ -64,6 +63,9 @@
     const pp = players[turn];
     $('turnInfo').textContent = pp.isAI ? `${pp.name} 思考中…` : `轮到 ${pp.name} 行动`;
     if (!pp.isAI){ $('rollBtn').disabled = false; updateBuildBtn(); }
+    // 读档也要触发 onStart：交易按钮绑定等一次性初始化都挂在这里，
+    // 只在「开新局」分支触发会导致续档后交易等功能整体失效
+    Game.onStart.forEach(f => { try { f(); } catch(e){} });
   }
 
   const saved = loadSave();

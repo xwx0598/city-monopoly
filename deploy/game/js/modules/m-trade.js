@@ -222,14 +222,10 @@ Game.use('trade', () => {
     btn.disabled = !can;
   });
 
-  // 存档：把交易按钮状态与数据初始化交给 onStart（按钮事件只绑一次）
-  let bound = false;
-  Game.onStart.push(() => {
-    if (bound) return;
-    bound = true;
-    const btn = $('tradeBtn');
-    if (btn) btn.onclick = () => { if (!btn.disabled) openModal(); };
-  });
+  // 存档：按钮事件在模块装载时直接绑定（DOM 已就绪），不依赖 onStart——
+  // 续档路径过去不触发 onStart，导致读档后「交易」按钮完全无响应
+  const tradeBtn = $('tradeBtn');
+  if (tradeBtn) tradeBtn.onclick = () => { if (!tradeBtn.disabled) openModal(); };
 
   // 测试钩子
   Game.tradeApi = { execTrade, aiEvaluate, propValFor, openModal, closeModal };

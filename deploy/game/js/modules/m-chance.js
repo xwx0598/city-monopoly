@@ -41,9 +41,14 @@ Game.use('chance', () => {
       let m = card.money;
       // 金额调整钩子（羁绊模块的事件卡减免等）
       Game.cardMoneyFilters.forEach(f => { try { const v = f(pi, m); if (typeof v === 'number') m = Math.round(v); } catch(e){} });
-      p.money += m;
-      floatMoney(pi, m);
-      renderPlayers();
+      if (m < 0){
+        // 损失走统一付款流程：AI 会先变卖资产自救，人类会收到资不抵债预警，破产判定也一致
+        await pay(pi, null, -m, '事件卡损失');
+      } else {
+        p.money += m;
+        floatMoney(pi, m);
+        renderPlayers();
+      }
     }
     if (card.effect === 'birthday'){
       for (let qi = 0; qi < players.length; qi++){
@@ -93,10 +98,14 @@ Game.use('chance', () => {
         const cand = (p.pos + k) % TILES.length;
         if (TILES[cand].type === 'station'){ idx = cand; break; }
       }
-      await teleportTo(pi, idx);
-      await sleep(200);
-      await resolveLanding(pi, depth + 1);
-      return;
+      if (idx === p.pos){   // 图上没有车站：原地不动，避免反复触发自己
+        log(`🚕 ${p.name} 想赶去车站，但这座城市没有车站`);
+      } else {
+        await teleportTo(pi, idx);
+        await sleep(200);
+        await resolveLanding(pi, depth + 1);
+        return;
+      }
     }
     if (card.effect === 'move3' && canChain){
       await moveSteps(pi, 3);

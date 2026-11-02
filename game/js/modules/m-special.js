@@ -63,7 +63,8 @@ Game.use('special-tiles', () => {
     const owned = players[owner].props.filter(x => TILES[x].type === 'utility' && !tileMortgaged[x]).length;
     return lastRoll * (owned >= 2 ? 20 : 8);
   };
-  Game.rentReason = (i, owner) => `使用「${TILES[i].name}」（骰子 ${lastRoll} 点）`;
+  // 文案里带「租金」：其它模块（如实业联盟的付租减免）按 reason 匹配租金类支出
+  Game.rentReason = (i, owner) => `使用「${TILES[i].name}」的租金（骰子 ${lastRoll} 点）`;
   Game.rentNote = (i) => '租金按每次骰子点数计算（×8，集齐两座 ×20）';
 
   // ---- 奖池：供其他模块（如事件卡维修费）存取 ----

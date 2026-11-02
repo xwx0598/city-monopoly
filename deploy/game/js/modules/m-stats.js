@@ -42,7 +42,8 @@ Game.use('stats', () => {
   }
 
   // 第 1 回合开始时记初始快照；之后每推进一回合：快照新回合 + 结算上一回合垄断
-  Game.onStart.push(() => snapshot());
+  // 读档时 onStart 也会触发（boot 里 applySaveState 统一触发），curve 已从存档恢复，不重复打点
+  Game.onStart.push(() => { if (!curve.length) snapshot(); });
   Game.onRound.push(r => { trackMonopoly(r - 1); snapshot(); });
 
   // ---------- 图表渲染 ----------
