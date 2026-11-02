@@ -926,13 +926,16 @@ async function runAuction(i, lander){
     if (players[pi].isAI){
       ['aucB10','aucB50','aucB100','aucPass'].forEach(id => $(id).disabled = true);
       $('aucCur').textContent = `${players[pi].name} 思考中…`;
-      await sleep(650 + Math.random()*450);
+      await sleep(480 + Math.random()*320);
       const cap = Game.ai.bidValue ? Game.ai.bidValue(pi, i) : Math.min(Math.round(t.price * 0.6), players[pi].money - 100);
       if (highBid === 0){
         const open = Math.max(MIN_BID, Math.round(t.price * 0.3 / BID_STEP) * BID_STEP);
         if (cap >= open) bid = open;
       } else {
-        const next = highBid + BID_STEP;
+        // 加价幅度按地价走（约 6%，至少 ¥10）：固定 +¥10 会让人盯着一场 AI 互相抬价
+        // 抬四十多轮、干等半分钟才成交，节奏太差
+        const step = Math.max(BID_STEP, Math.round(t.price * 0.06 / BID_STEP) * BID_STEP);
+        const next = highBid + step;
         if (cap >= next && Math.random() < 0.75) bid = next;   // 75% 概率跟进
       }
     } else {

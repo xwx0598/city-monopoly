@@ -60,6 +60,7 @@ game/
    ├─ core.js              核心引擎
    ├─ config.js            模块开关（删一行即卸载该玩法）
    ├─ boot.js              启动引导
+   ├─ _selftest.js         自检脚本（仅 ?selftest=1 时注入）
    └─ modules/
       ├─ m-maps.js         多地图 + 随机岛屿生成
       ├─ m-special.js      电站 / 赌场 / 交警 / 奖池
@@ -71,6 +72,7 @@ game/
       ├─ m-stats.js        对局统计（资产曲线 / 垄断纪录）
       └─ m-synergy.js      金铲铲式羁绊（可选玩法，大厅开关启用）
 assets/                    原始 SVG 素材
+tools/selftest.mjs         无头浏览器整局自检（不参与运行）
 deploy/                    可直接运行的副本（含启动脚本）
 ```
 
@@ -83,6 +85,23 @@ deploy/                    可直接运行的副本（含启动脚本）
 - `?new=1` — 忽略存档强制开新局
 
 其余参数：`mode=ai|hotseat`、`ai=1~3`、`buy/build/tactic=easy|normal|hard`、`map=mini|classic|metro|random`、`n=2~4`、`autoload=1`。
+
+### 自检（改完核心逻辑先跑一遍）
+
+`tools/selftest.mjs` 用无头浏览器把整局游戏打到底，全程校验不变量，不需要起服务器、不装任何依赖（Node 18+）：
+
+```bash
+node tools/selftest.mjs             # 跑默认 8 组：四张地图 × 可选玩法 × 人数 × 种子
+node tools/selftest.mjs --only=3    # 只跑第 3 组
+node tools/selftest.mjs --verbose   # 附带落格覆盖率和排版告警
+```
+
+原理：`game.html?selftest=1` 时 boot.js 才注入 `game/js/_selftest.js`（正常游玩不加载这个文件），它在该页接管「人类玩家」——自动点购买/机会卡/入狱/破产/拍卖弹窗、该掷骰就掷，用 `--virtual-time-budget` 把几十秒的动画瞬间快进，一局 30 回合约 3 秒跑完。跑完页面把 JSON 写进 DOM，`--dump-dom` 抓回来汇总。
+
+校验项：地产归属与 `props` 双向一致、等级 0~3、抵押与建筑互斥、破产者无资产无现金、回合指针不落在破产者、羁绊阶级不越界、存档可原样回读、地块价格标签存在、棋盘不压面板、无 JS 报错、无流程卡死（弹窗 12 秒不动会单独报 `MODAL_STUCK`）。退出码非 0 即为失败。
+
+`?selftest=1` 也可以手动用，页面标题会显示 `PASS` / `FAIL`。种子随机只接管骰子、事件卡与 AI 决策；随机地图的布局在更早阶段生成，要固定地图请显式传 `map=`。
+
 
 ## 目录约定
 

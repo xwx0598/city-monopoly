@@ -109,4 +109,12 @@
   if (Game._off.length) parts.push('未启用：' + Game._off.join('、'));
   if (Game._failed.length) parts.push('⚠️ 装载失败：' + Game._failed.join('、'));
   log('🧩 ' + (parts.join('；') || '纯核心模式（未装载任何玩法模块）'), Game._failed.length ? 'bad' : '');
+
+  // 自检脚本按需注入：只有 ?selftest=1 才请求这个文件，正常游玩零开销
+  // （tools/selftest.mjs 用它批量跑不变量检测，见 README「自检」一节）
+  if (QS.get('selftest') === '1'){
+    const st = document.createElement('script');
+    st.src = '../js/_selftest.js?v=20261102g';
+    document.body.appendChild(st);
+  }
 })();
