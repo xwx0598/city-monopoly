@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>城市大富翁</title>
-<link rel="stylesheet" href="../css/game.css?v=20261103b">
+<link rel="stylesheet" href="../css/game.css?v=20261103c">
 </head>
 <body>
 <div class="app">
@@ -110,11 +110,20 @@
 </div>
 
 <div class="overlay hidden" id="auctionModal">
-  <div class="modal">
+  <div class="modal auc-modal">
     <h3 id="aucTitle">🔨 拍卖</h3>
-    <p id="aucInfo"></p>
-    <p style="font-weight:700;margin-bottom:8px" id="aucCur"></p>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <div class="auc-stage">
+      <div class="auc-table">
+        <div class="auc-lot">
+          <div class="auc-lot-name" id="aucLotName"></div>
+          <div class="auc-lot-price" id="aucLotPrice"></div>
+          <div class="auc-lot-base" id="aucLotBase"></div>
+        </div>
+      </div>
+      <div id="aucSeats"></div>
+    </div>
+    <p id="aucInfo" class="auc-info"></p>
+    <div class="auc-btns">
       <button class="btn-yes" id="aucB10">出价</button>
       <button class="btn-yes" id="aucB50">加价 ¥50</button>
       <button class="btn-yes" id="aucB100">加价 ¥100</button>
@@ -219,7 +228,7 @@
 <!-- ============ 模块化脚本：核心引擎 + 可插拔玩法模块 ============ -->
 <script src="../js/icons.js?v=20261102a"></script>
 <script src="../js/config.js?v=20261102a"></script>
-<script src="../js/core.js?v=20261103g"></script>
+<script src="../js/core.js?v=20261103h"></script>
 <script src="../js/modules/m-maps.js?v=20261102b"></script>
 <script src="../js/modules/m-special.js?v=20261102e"></script>
 <script src="../js/modules/m-chance.js?v=20261102e"></script>

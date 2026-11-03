@@ -1022,6 +1022,45 @@ async function resolveLanding(pi, depth = 0){
 // ================= 拍卖（经典规则：放弃购买的地块由全体玩家竞价） =================
 const BID_STEP = 10, MIN_BID = 10;
 
+// ---- 拍卖桌渲染：座位围桌一圈，当前价在桌面中央 ----
+let _aucLastPrice = -1;
+function aucSetup(t){
+  _aucLastPrice = -1;
+  $('aucLotName').textContent = `「${t.name}」`;
+  $('aucLotBase').textContent = `标价 ¥${t.price}`;
+  const slots = players.length <= 2 ? ['top', 'bottom'] : ['top', 'right', 'bottom', 'left'];
+  const box = $('aucSeats');
+  box.innerHTML = '';
+  players.forEach((p, pi) => {
+    const d = document.createElement('div');
+    d.className = `auc-seat s-${slots[pi % slots.length]}` + (p.bankrupt ? ' out' : '');
+    d.id = 'aucSeat' + pi;
+    d.innerHTML = `<div class="auc-tag"></div>
+      <div class="auc-name"><span class="pdot" style="background:${p.color}"></span>${p.name}</div>
+      <div class="auc-money">现金 ¥${p.money}</div>`;
+    box.appendChild(d);
+  });
+}
+function aucSetActive(pi){
+  players.forEach((_, k) => $('aucSeat' + k)?.classList.toggle('active', k === pi));
+}
+function aucSetPrice(highBid, leader){
+  if (highBid === _aucLastPrice) return;
+  _aucLastPrice = highBid;
+  const el = $('aucLotPrice');
+  el.innerHTML = highBid > 0
+    ? `¥${highBid}${leader !== null ? `<span class="auc-by">${players[leader].name}</span>` : ''}`
+    : '<span class="auc-none">待出价</span>';
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+}
+function aucSeatTag(pi, text, cls){
+  const tag = $('aucSeat' + pi)?.querySelector('.auc-tag');
+  if (tag){ tag.textContent = text; tag.className = 'auc-tag ' + (cls || ''); }
+}
+function aucSeatOut(pi){
+  $('aucSeat' + pi)?.classList.add('out');
+}
+
 function aucHumanTurn(pi, highBid, isLeader){
   return new Promise(resolve => {
     const base = Math.max(highBid + BID_STEP, MIN_BID);
@@ -1056,16 +1095,16 @@ async function runAuction(i, lander){
   let pos = Math.max(0, remaining.indexOf(lander));
   $('aucTitle').textContent = `🔨 拍卖「${t.name}」`;
   $('auctionModal').classList.remove('hidden');
+  aucSetup(t);
   log(`🔨 「${t.name}」（标价 ¥${t.price}）无人购买，进入全体拍卖！`, 'card');
 
   while (true){
     if (remaining.length === 0) break;                                             // 全体弃拍 → 流拍
     if (leader !== null && remaining.length === 1 && remaining[0] === leader) break; // 只剩领先者 → 成交
     const pi = remaining[pos % remaining.length];
-    $('aucInfo').innerHTML =
-      `标价 ¥${t.price}　当前最高：<b>${leader === null ? '暂无出价' : `¥${highBid}（${players[leader].name}）`}</b><br>` +
-      `<span style="font-size:12px;color:#9C9789">仍在竞拍：${remaining.map(x => players[x].name).join('、')}</span>`;
-    $('aucCur').textContent = `轮到 ${players[pi].name}（现金 ¥${players[pi].money}）`;
+    aucSetActive(pi);
+    aucSetPrice(highBid, leader);
+    $('aucInfo').textContent = `轮到 ${players[pi].name} · 现金 ¥${players[pi].money}`;
 
     let bid = null, hold = false;   // hold = 领先者按兵不动：保持最高价、不移出竞拍
     if (players[pi].isAI){
@@ -1074,7 +1113,7 @@ async function runAuction(i, lander){
         hold = true;
       } else {
         ['aucB10','aucB50','aucB100','aucPass'].forEach(id => $(id).disabled = true);
-        $('aucCur').textContent = `${players[pi].name} 思考中…`;
+        $('aucInfo').textContent = `${players[pi].name} 思考中…`;
         await sleep(480 + Math.random()*320);
         const cap = Game.ai.bidValue ? Game.ai.bidValue(pi, i) : Math.min(Math.round(t.price * 0.6), players[pi].money - 100);
         if (highBid === 0){
@@ -1093,25 +1132,38 @@ async function runAuction(i, lander){
     }
 
     if (hold){
+      aucSeatTag(pi, '保持出价', 't-hold');
       pos++;   // 保持出价，轮到下一位
     } else if (bid === null){
+      aucSeatTag(pi, '弃拍', 't-pass');
+      aucSeatOut(pi);
       log(`🔨 ${players[pi].name} 弃拍`);
       remaining.splice(pos % remaining.length, 1);
       if (pos >= remaining.length) pos = 0;
     } else {
       highBid = bid; leader = pi;
+      aucSeatTag(pi, `出价 ¥${bid}`, 't-bid');
+      aucSetPrice(highBid, leader);
       log(`🔨 ${players[pi].name} 出价 ¥${bid}`);
       pos++;
     }
   }
-  $('auctionModal').classList.add('hidden');
+  players.forEach((_, k) => $('aucSeat' + k)?.classList.remove('active'));
 
   if (leader === null){
+    $('aucLotPrice').innerHTML = '<span class="auc-none">流拍</span>';
+    await sleep(900);
+    $('auctionModal').classList.add('hidden');
     log(`🔨 「${t.name}」无人出价，流拍，保持无主状态`);
     saveGame();
     return;
   }
   const w = players[leader];
+  $('aucSeat' + leader)?.classList.add('win');
+  aucSeatTag(leader, '🎉 拍得', 't-win');
+  $('aucLotPrice').innerHTML = `¥${highBid}<span class="auc-by">成交 · ${w.name}</span>`;
+  await sleep(1000);
+  $('auctionModal').classList.add('hidden');
   w.money -= highBid;
   w.props.push(i);
   tileOwner[i] = leader;

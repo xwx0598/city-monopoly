@@ -353,7 +353,7 @@
     const aucOpen = !!(aucEl && !aucEl.classList.contains('hidden'));
     if (aucOpen && !prevAucOpen) report.stats.auctions++;   // 一场新拍卖（不是叫价轮次）
     prevAucOpen = aucOpen;
-    const aucLive = aucOpen ? ((document.getElementById('aucCur') || {}).textContent || '') : '';
+    const aucLive = aucOpen ? ((document.getElementById('aucInfo') || {}).textContent || '') : '';
     const key = round + '|' + turn + '|' + (players[turn] ? players[turn].money : '') + '|' +
                 Object.keys(tileOwner).length + '|' + aucLive;
     if (key !== lastTurnKey){ lastTurnKey = key; lastProgress = tickCount; turnCounter++; }
@@ -379,8 +379,8 @@
       const open = OVERLAYS.filter(id => { const el = document.getElementById(id); return el && !el.classList.contains('hidden'); });
       const rb = document.getElementById('rollBtn');
       const extra = {};
-      const ac = document.getElementById('aucCur');
-      if (ac) extra.aucCur = ac.textContent;
+      const ac = document.getElementById('aucInfo');
+      if (ac) extra.aucInfo = ac.textContent;
       const bc = document.getElementById('buyTitle');
       if (bc) extra.buyTitle = bc.textContent;
       const dd = document.getElementById('debtDesc');
