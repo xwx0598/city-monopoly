@@ -134,15 +134,27 @@ const url = `http://127.0.0.1:${PORT}/game/html/game.html?mode=ai&ai=3&map=class
 await cdp.call('Page.navigate', { url });
 
 // 等对局结束（selftest 报告出现在 DOM 里）
+const LIMIT = 240000;
 const t0 = Date.now();
 let report = false;
-while (Date.now() - t0 < 120000){
+while (Date.now() - t0 < LIMIT){
   await sleep(1000);
   const m = await evalJs(`(document.body.textContent.match(/SELFTESTBASE64:([A-Za-z0-9+\\/=]+)/) || [])[1] || ''`);
   if (m){ report = true; break; }
 }
 const wall = ((Date.now() - t0) / 1000).toFixed(1);
-console.log(report ? `对局完成，墙钟 ${wall}s（含探针启动）` : '⚠ 120s 内没等到对局结束');
+if (!report){
+  // 超时时打印进度，区分「慢」与「卡死」
+  const prog = await evalJs(`(function(){
+    try {
+      const t = document.querySelector('#turnInfo')?.textContent || '';
+      const r = (document.querySelector('#roundInfo')?.textContent || '');
+      const logLen = document.querySelectorAll('#log > div').length;
+      return t + ' | ' + r + ' | 日志 ' + logLen + ' 条';
+    } catch(e){ return '进度未知: ' + e.message; }
+  })()`);
+  console.log(`⚠ ${LIMIT / 1000}s 内没等到对局结束，当前进度: ${prog}`);
+} else console.log(`对局完成，墙钟 ${wall}s（含探针启动）`);
 
 const perf = await evalJs(`JSON.stringify(window.__PERF)`);
 const data = JSON.parse(perf);
