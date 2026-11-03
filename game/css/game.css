@@ -306,10 +306,10 @@
     box-shadow:0 2px 8px rgba(74,68,60,.1); }
   .panel h4 { font-size:11px; color:#7E8B93; font-weight:600; margin-bottom:6px; letter-spacing:3px; }
   #log { flex:1 1 0; min-height:110px; overflow-y:auto; overscroll-behavior:contain; font-size:12px; line-height:21px; color:#4B4840; padding-right:4px;
-    background-image:repeating-linear-gradient(180deg, transparent 0 20px, rgba(140,130,108,.14) 20px 21px);
-    background-position:0 2px; scrollbar-width:thin; scrollbar-color:#C9BFA9 transparent; }
+    scrollbar-width:thin; scrollbar-color:#C9BFA9 transparent; }
   #log::-webkit-scrollbar { width:6px; }
   #log::-webkit-scrollbar-thumb { background:#C9BFA9; border-radius:3px; }
+  #log div { border-bottom:1px solid rgba(140,130,108,.16); }
   #log div { animation:slideIn .25s ease; }
   @keyframes slideIn { from{ opacity:0; transform:translateX(-6px) } to{ opacity:1; transform:none } }
   #log .good { color:#4F7A5E; } #log .bad { color:#A05752; } #log .card { color:#96714F; }
