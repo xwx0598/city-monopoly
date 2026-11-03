@@ -212,10 +212,28 @@ try {
   ok(!!errC && /开始/.test(errC.msg), '进行中的房间拒绝加入');
   C.close();
 
-  // 10. 断线通知
+  // 10. 断线通知 + 进入托管
   B.close();
   const left = await A.wait('peer_left');
   ok(left?.seat === 1, '断线时通知同桌玩家');
+  const roster1 = await A.wait('roster');
+  ok(Array.isArray(roster1?.hosted) && roster1.hosted.includes(1) && roster1.connected.length === 1,
+    '断线座位进入托管连接表（hosted=[1]）');
+
+  // 10b. 重连收回托管
+  const B2 = await connect();
+  await B2.wait('hello');
+  B2.send({ t: 'hi', name: '玩家B' });
+  await B2.wait('hello');
+  B2.send({ t: 'resume', id: joinedA.room.id, seat: 1 });
+  const live = await B2.wait('game_live');
+  ok(!!live, '断线玩家按座位号重连成功');
+  const roster2 = await A.wait('roster');
+  if (!roster2 || roster2.hosted?.length !== 0 || !roster2.connected?.includes(1))
+    console.log('  [debug] roster2 =', JSON.stringify(roster2), '｜A 队列残留见后续');
+  ok(roster2?.hosted?.length === 0 && roster2.connected.includes(1) && roster2.connected.includes(0),
+    '重连后托管收回（hosted=[]，全员在线）');
+  B2.close();
 
   A.close();
   await sleep(200);

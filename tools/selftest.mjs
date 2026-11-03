@@ -48,7 +48,36 @@ const CASES = [
   { name: '同屏4人·全玩法',  q: 'mode=hotseat&n=4&map=metro&mods=synergy,weather,items,stocks,quests,visit&seed=920' },
   { name: '迷你·城建·2人',   q: 'mode=ai&ai=1&map=mini&mods=vote&seed=921' },
   { name: '经典·大满贯',     q: 'mode=ai&ai=3&map=classic&mods=synergy,weather,items,stocks,quests,visit,vote&seed=922' },
+  { name: '自制图·分享码',   q: 'mode=ai&ai=2&map=custom&mc=' + customMapCode() + '&mods=synergy&seed=923' },
 ];
+
+// 自定义地图（编辑器分享码链路）：内联生成一张 20 格图，验证 map=custom&mc= 解码 + 整局兼容
+function customMapCode(){
+  const tiles = [
+    { type:'go', name:'起点' },
+    { type:'prop', name:'自检大道', group:'A', price:600 },
+    { type:'chance', name:'机会' },
+    { type:'prop', name:'自检小巷', group:'A', price:600 },
+    { type:'station', name:'自检车站', price:800 },
+    { type:'prop', name:'自检公寓', group:'A', price:700 },
+    { type:'jail', name:'监狱' },
+    { type:'prop', name:'自检仓库', group:'B', price:800 },
+    { type:'tax', name:'税收' },
+    { type:'prop', name:'自检旅馆', group:'B', price:800 },
+    { type:'parking', name:'免费停车' },
+    { type:'prop', name:'自检百货', group:'C', price:1000 },
+    { type:'casino', name:'幸运赌场' },
+    { type:'prop', name:'自检大厦', group:'C', price:1000 },
+    { type:'auction', name:'拍卖行' },
+    { type:'bonus', name:'奖励格' },
+    { type:'prop', name:'自检园区', group:'D', price:1200 },
+    { type:'insurance', name:'保险代理' },
+    { type:'prop', name:'自检酒店', group:'D', price:1400 },
+    { type:'police', name:'交警临检' },
+  ];
+  return Buffer.from(JSON.stringify({ name:'自检图', tiles }), 'utf8')
+    .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
 const args = process.argv.slice(2);
 const opt = {

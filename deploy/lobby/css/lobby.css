@@ -211,6 +211,12 @@
   }
   .map-opts .mseed:focus { border-color:var(--slate); }
   .map-opts .mseed::placeholder { color:#B0AB9E; font-size:11px; }
+  .map-opts .map-editor-link {
+    display:flex; align-items:center; padding:6px 12px; border:1.5px dashed var(--camel);
+    border-radius:11px; color:var(--camel-deep); font-size:12.5px; text-decoration:none;
+    background:rgba(176,137,104,.06); transition:.15s; align-self:center;
+  }
+  .map-opts .map-editor-link:hover { background:rgba(176,137,104,.14); transform:translateY(-1px); }
 
   /* 可选玩法磁贴网格 */
   .mod-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(216px,1fr)); gap:8px; }

@@ -161,14 +161,47 @@ Game.use('maps', () => {
     return { id:'random', name:`随机岛屿 #${seed}`, tiles };
   }
 
+  // ---- 自定义地图（地图编辑器产出）：URL 传 mc=分享码，或 mid=本机存图 id ----
+  // 分享码 = URL 安全 base64(JSON)。解码逻辑在 lobby/js/editor.js 有一份对应的编码侧；
+  // 两边刻意不共享文件（编辑器不加载游戏模块），改动时记得同步。
+  function decodeMapCode(code){
+    try {
+      let s = String(code || '').trim().replace(/-/g, '+').replace(/_/g, '/');
+      while (s.length % 4) s += '=';
+      const obj = JSON.parse(decodeURIComponent(escape(atob(s))));
+      if (!obj || !Array.isArray(obj.tiles) || obj.tiles.length < 10 || obj.tiles.length > 64) return null;
+      const T = ['go','prop','station','utility','chance','tax','jail','parking','bonus','casino','police','insurance','auction'];
+      if (!obj.tiles.every(t => t && T.includes(t.type))) return null;
+      if (!obj.tiles[0] || obj.tiles[0].type !== 'go') return null;   // 起点必须在第 0 格
+      return obj;
+    } catch(e){ return null; }
+  }
+
   // 启动时决定用哪张地图：存档里的地图 > URL 参数 > 预设默认
   Game.beforeBoard.push(bootSave => {
-    const mapQS = new URLSearchParams(location.search).get('map');
+    const qs = new URLSearchParams(location.search);
+    const mapQS = qs.get('map');
     const sm = bootSave && bootSave.mods && bootSave.mods.maps;
     if (sm && sm.map && Array.isArray(sm.map.tiles)){
       Game.applyMap({ id: sm.map.id || 'random', name: sm.map.name || '随机岛屿', tiles: sm.map.tiles });
-    } else if (mapQS === 'random'){
-      Game.applyMap(genRandomMap());
+    } else if (mapQS === 'custom'){
+      const mc = qs.get('mc'), mid = qs.get('mid');
+      let cm = null;
+      if (mc){
+        const decoded = decodeMapCode(mc);
+        if (decoded) cm = { name: decoded.name || '自定义地图', tiles: decoded.tiles };
+      } else if (mid){
+        try {
+          const store = JSON.parse(localStorage.getItem('cm_custom_maps') || '{}');
+          const m = store[mid];
+          if (m && Array.isArray(m.tiles)) cm = { name: m.name || '自定义地图', tiles: m.tiles };
+        } catch(e){}
+      }
+      if (cm) Game.applyMap({ id: 'custom', name: cm.name, tiles: cm.tiles });
+      else {
+        log('⚠️ 自定义地图加载失败（分享码无效或本机地图已删），已回退经典小城', 'bad');
+        Game.applyMap(MAP_PRESETS.classic);
+      }
     } else {
       Game.applyMap(MAP_PRESETS[mapQS] || MAP_PRESETS.classic);
     }

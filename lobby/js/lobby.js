@@ -106,8 +106,37 @@ document.getElementById('backBtn').addEventListener('click', showModePicker);
 const MAP_KEY = 'monopoly_map_pref';
 const MAP_NAMES = { classic:'经典小城', mini:'迷你快棋', metro:'繁华都会', random:'随机岛屿' };
 let MAP_PREF = (() => {
-  try { const v = localStorage.getItem(MAP_KEY); return MAP_NAMES[v] ? v : 'classic'; } catch(e){ return 'classic'; }
+  try {
+    const v = localStorage.getItem(MAP_KEY);
+    if (v && (MAP_NAMES[v] || v.startsWith('custom:'))) return v;
+    return 'classic';
+  } catch(e){ return 'classic'; }
 })();
+const CUSTOM_STORE_KEY = 'cm_custom_maps';   // 与 editor.js 共用
+function customMapName(pref){
+  if (!pref || !pref.startsWith('custom:')) return null;
+  try {
+    const store = JSON.parse(localStorage.getItem(CUSTOM_STORE_KEY) || '{}');
+    const m = store[pref.slice(7)];
+    return (m && m.name) || '自定义地图';
+  } catch(e){ return '自定义地图'; }
+}
+// 编辑器保存的本机地图动态插进地图选择行（放在「地图编辑器」链接之前）
+function renderCustomMapOpts(){
+  const row = document.getElementById('mapOpts');
+  if (!row) return;
+  row.querySelectorAll('button[data-map^="custom:"]').forEach(b => b.remove());
+  let store = {};
+  try { store = JSON.parse(localStorage.getItem(CUSTOM_STORE_KEY) || '{}'); } catch(e){}
+  const link = row.querySelector('.map-editor-link');
+  Object.keys(store).sort((a, b) => (store[b].ts || 0) - (store[a].ts || 0)).forEach(id => {
+    const b = document.createElement('button');
+    b.dataset.map = 'custom:' + id;
+    b.title = '自制地图（在地图编辑器里管理）';
+    b.innerHTML = `🎨 ${(store[id].name || id).slice(0, 6)}<small>自制</small>`;
+    row.insertBefore(b, link);
+  });
+}
 
 function syncMapOpts(){
   document.querySelectorAll('#mapOpts button').forEach(b => {
@@ -230,7 +259,7 @@ function diffLabel(){
 function modsLabel(){ return MODS_PREF.length ? MODS_PREF.length + ' 项玩法' : '纯经典玩法'; }
 
 function syncSummary(){
-  const m = MAP_NAMES[MAP_PREF];
+  const m = customMapName(MAP_PREF) || MAP_NAMES[MAP_PREF] || '经典小城';
   const aiSum = document.getElementById('sumAi');
   if (aiSum) aiSum.textContent = `${m} · ${modsLabel()} · ${diffLabel()}`;
   const hsSum = document.getElementById('sumHotseat');
@@ -260,6 +289,10 @@ document.getElementById('startBtn').addEventListener('click', () => {
   if (MAP_PREF === 'random'){
     const ms = (document.getElementById('mseedInput').value || '').trim();
     if (/^\d{1,6}$/.test(ms)) q.set('mseed', ms);
+  }
+  if (MAP_PREF && MAP_PREF.startsWith('custom:')){
+    q.set('map', 'custom');
+    q.set('mid', MAP_PREF.slice(7));     // 对局页从本机 cm_custom_maps 里取
   }
   if (MODS_PREF.length) q.set('mods', MODS_PREF.join(','));
   if (slot && readSlot(slot) && !confirm('开始新对局会清空「' + slot.label + '」的存档，确定吗？')) return;
@@ -372,7 +405,7 @@ function syncButtons(){
 renderSaves();
 
 // 从对局返回、或切回本页时刷新存档列表
-window.addEventListener('pageshow', () => { renderSaves(); syncModsOpts(); syncMapOpts(); syncSegs(); });
+window.addEventListener('pageshow', () => { renderCustomMapOpts(); renderSaves(); syncModsOpts(); syncMapOpts(); syncSegs(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) renderSaves(); });
 
 // ============ 初始化 + 直链支持 ============

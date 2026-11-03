@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>地图编辑器 · 城市大富翁</title>
+  <link rel="stylesheet" href="../css/editor.css?v=20261103a">
+</head>
+<body class="ed-body">
+  <header class="ed-top">
+    <a class="ed-back" href="index.html">← 返回大厅</a>
+    <h1>🎨 地图编辑器</h1>
+    <div class="ed-spacer"></div>
+    <input id="mapName" maxlength="12" placeholder="地图名" value="我的地图" style="width:120px">
+    <select id="tplSel" style="width:110px">
+      <option value="mini">模板：迷你快棋</option>
+      <option value="classic">模板：经典小城</option>
+      <option value="metro">模板：繁华都会</option>
+      <option value="blank">空白棋盘</option>
+    </select>
+    <button id="tplLoad" class="ed-btn">载入模板</button>
+    <button id="saveBtn" class="ed-btn">💾 保存本机</button>
+    <button id="playBtn" class="ed-btn primary">▶ 试玩</button>
+  </header>
+
+  <main class="ed-main">
+    <section class="ed-board-wrap">
+      <div id="edBoard"></div>
+      <div id="edWarn" class="ed-warn"></div>
+    </section>
+    <aside class="ed-side">
+      <div class="ed-panel">
+        <h3>格子操作</h3>
+        <div class="ed-tools">
+          <button id="addTile" class="ed-btn">➕ 加格子</button>
+          <button id="delTile" class="ed-btn">🗑 删除</button>
+          <button id="mvUp" class="ed-btn">↑</button>
+          <button id="mvDown" class="ed-btn">↓</button>
+        </div>
+      </div>
+      <div class="ed-panel">
+        <h3>编辑选中格子</h3>
+        <div class="ed-form" id="edForm">
+          <div class="row"><label>类型</label><select id="fType"></select></div>
+          <div class="row"><label>名字</label><input id="fName" maxlength="6"></div>
+          <div class="row" id="rowPrice"><label>价格</label><input id="fPrice" type="number" min="100" max="4000" step="50"></div>
+          <div class="row" id="rowGroup"><label>分组</label><select id="fGroup">
+            <option value="A">A 组（紫）</option><option value="B">B 组（蓝）</option>
+            <option value="C">C 组（橙）</option><option value="D">D 组（绿）</option>
+            <option value="E">E 组（玫）</option>
+          </select></div>
+        </div>
+      </div>
+      <div class="ed-panel">
+        <h3>分享</h3>
+        <div class="ed-share">
+          <button id="copyCode" class="ed-btn">📋 复制分享码</button>
+          <button id="importCode" class="ed-btn">📥 导入分享码</button>
+        </div>
+      </div>
+      <div class="ed-panel">
+        <h3>格子列表（按行进顺序）</h3>
+        <ol id="tileList" class="ed-list"></ol>
+        <div id="edStat" class="ed-stat" style="margin-top:8px"></div>
+      </div>
+    </aside>
+  </main>
+  <div id="savedMaps" class="ed-saved"></div>
+
+  <script src="../js/editor.js?v=20261103a"></script>
+</body>
+</html>

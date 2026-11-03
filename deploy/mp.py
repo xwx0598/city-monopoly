@@ -175,6 +175,7 @@ class Room:
         self.opts = opts or {}
         self.status = "lobby"           # lobby | playing
         self.seats = [Seat(i, None) for i in range(self.max)]
+        self.game_seats = []            # 开局时的参战座位号（空座不参与托管）
         self.created = time.time()
         self.touched = time.time()
         self.bind(0, host)
@@ -187,6 +188,17 @@ class Room:
         seat.ready = False
         conn.room = self
         conn.seat = idx
+
+    def connected(self):
+        """当前在线座位号（升序）。"""
+        return sorted(s.idx for s in self.seats if s.conn and s.conn.alive)
+
+    def hosted(self):
+        """对局中断线的座位号——这些座位由 AI 代打（托管）。只统计开局参战座位。"""
+        if self.status != "playing":
+            return []
+        return sorted(s.idx for s in self.seats
+                      if s.idx in self.game_seats and not (s.conn and s.conn.alive))
 
     def detach(self, conn):
         for seat in self.seats:
@@ -267,14 +279,22 @@ class Lobby:
                 self.broadcast_rooms()
                 return
             if room.status == "playing":
-                # 对局中断线：告诉剩下的人，房间回到可重进状态
+                # 对局中断线：告诉剩下的人，座位进入 AI 托管（可重连收回）
                 self.broadcast_room(room, {"t": "peer_left", "seat": idx, "name": conn.name})
+                self.broadcast_roster(room)
             else:
                 # 大厅里走人：房主移交
                 if room.seats[room.host_seat()] and room.status == "lobby":
                     pass
                 self.broadcast_room(room)
             self.broadcast_rooms()
+
+    def broadcast_roster(self, room):
+        """对局中的座位连接表：connected=在线座位，hosted=断线待托管的座位。
+        客户端据此推举「最小在线座位」为托管驱动者（AI 代打掉线玩家）。"""
+        if room.status != "playing":
+            return
+        self.to_room(room, {"t": "roster", "connected": room.connected(), "hosted": room.hosted()})
 
     def broadcast_rooms(self):
         payload = {"t": "rooms", "rooms": [r.list_view() for r in self.rooms.values()]}
@@ -371,6 +391,8 @@ class Lobby:
                     conn.send_json({"t": "err", "msg": "还有玩家没准备"})
                     return
                 room.status = "playing"
+                humans = room.humans()
+                room.game_seats = [s.idx for s in humans]
                 seats = [{"seat": s.idx, "name": s.name} for s in humans]
                 self.to_room(room, {"t": "start", "roomId": room.id, "seats": seats, "opts": room.opts})
                 self.broadcast_rooms()
@@ -391,6 +413,9 @@ class Lobby:
                 if not (0 <= seat < room.max):
                     conn.send_json({"t": "err", "msg": "座位号无效"})
                     return
+                if room.status == "playing" and seat not in room.game_seats:
+                    conn.send_json({"t": "err", "msg": "该座位不在本局对局中"})
+                    return
                 if conn.room and conn.room is not room:
                     self.leave(conn)
                 old = room.seats[seat].conn
@@ -410,6 +435,7 @@ class Lobby:
                                    key=lambda s: s.idx)
                     if peers:
                         peers[0].conn.send_json({"t": "state_req"})
+                    self.broadcast_roster(room)   # 重连成功：托管座位收回，广播新连接表
                 self.broadcast_rooms()
             return
 
@@ -461,6 +487,7 @@ class Lobby:
         else:
             if room.status == "playing":
                 self.to_room(room, {"t": "peer_left", "seat": idx, "name": conn.name})
+                self.broadcast_roster(room)
             else:
                 self.broadcast_room(room)
 

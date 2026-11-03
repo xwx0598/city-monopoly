@@ -473,17 +473,26 @@ function highlightTile(i, on){
 function updateRound(){ $('roundInfo').textContent = `第 ${round} / ${MAX_ROUNDS} 回合`; }
 
 // ---- 联机回合锁：只有当前行动者的客户端才允许操作 ----
-function mpMine(){ return GAME_MODE !== 'mp' || turn === MP_SEAT; }
+// 例外：断线托管的座位由「驱动者」客户端代打（mp.js 推举最小在线座位当驱动者）
+function mpMine(){
+  if (GAME_MODE !== 'mp') return true;
+  if (turn === MP_SEAT) return true;
+  return !!(window.MPNet && MPNet.hostedSeat && MPNet.hostedSeat(turn) && MPNet.amDriving());
+}
 
 function updateTurnUi(){
   const p = players[turn];
   if (!p || !$('turnInfo')) return;
   const mine = mpMine();
-  if (GAME_MODE === 'mp' && !mine) $('turnInfo').textContent = `等待 ${p.name} 操作…`;
+  if (GAME_MODE === 'mp' && window.MPNet && MPNet.hostedSeat && MPNet.hostedSeat(turn))
+    $('turnInfo').textContent = `🤖 ${p.name} 掉线 · AI 代打中`;
+  else if (GAME_MODE === 'mp' && !mine) $('turnInfo').textContent = `等待 ${p.name} 操作…`;
   else if (p.isAI) $('turnInfo').textContent = `${p.name} 思考中…`;
   else $('turnInfo').textContent = `轮到 ${p.name} 行动`;
   $('rollBtn').disabled = p.isAI || !mine || busy || gameOver;
   updateBuildBtn();
+  // 断线托管：轮到托管座位且我是驱动者 → 由我的客户端代打（见 mp.js driveCheck）
+  if (window.MPNet && MPNet.driveCheck) MPNet.driveCheck();
 }
 
 // ================= 骰子（CSS 3D 立方体） =================

@@ -17,6 +17,27 @@
 
   const $ = id => document.getElementById(id);
 
+  // ---- 自制地图（与 editor.js 共用存储 key 与分享码格式）----
+  const CUSTOM_STORE_KEY = 'cm_custom_maps';
+  function loadCustomMaps(){ try { return JSON.parse(localStorage.getItem(CUSTOM_STORE_KEY) || '{}'); } catch(e){ return {}; } }
+  function encodeMap(obj){
+    return btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  // 本机保存的自制地图动态插进建房地图选择（放在预设按钮之后）
+  function renderRoomCustomMaps(){
+    const seg = $('segRoomMap');
+    if (!seg) return;
+    seg.querySelectorAll('button[data-v^="custom:"]').forEach(b => b.remove());
+    const store = loadCustomMaps();
+    Object.keys(store).sort((a, b) => (store[b].ts || 0) - (store[a].ts || 0)).forEach(id => {
+      const b = document.createElement('button');
+      b.dataset.v = 'custom:' + id;
+      b.textContent = '🎨 ' + (store[id].name || id).slice(0, 6);
+      seg.appendChild(b);
+    });
+  }
+
   function wsUrl(){
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     return proto + '//' + location.host + '/ws';
@@ -100,7 +121,9 @@
     $('roomTitle').textContent = room.name;
     $('roomCode').textContent = room.id;
     $('roomHint').textContent = room.status === 'playing' ? '对局进行中' : `房间码 ${room.id} · 让朋友在联机大厅输入`;
-    const mapName = { classic:'经典小城', mini:'迷你快棋', metro:'繁华都会', random:'随机岛屿' }[room.opts.map] || '经典小城';
+    const mapName = room.opts.map === 'custom'
+      ? (room.opts.mname || '自定义地图')
+      : ({ classic:'经典小城', mini:'迷你快棋', metro:'繁华都会', random:'随机岛屿' }[room.opts.map] || '经典小城');
     const modsText = room.opts.mods ? room.opts.mods.split(',').filter(Boolean).length + ' 项玩法' : '纯经典玩法';
     $('roomOptsTip').textContent = `${mapName} · ${modsText}`;
 
@@ -189,6 +212,7 @@
     });
     if (opts.mods) q.set('mods', opts.mods);
     if (opts.mseed) q.set('mseed', opts.mseed);
+    if (opts.mc) q.set('mc', opts.mc);      // 自制地图分享码（map=custom 时由 m-maps 解码）
     location.href = '../../game/html/game.html?' + q.toString();
   }
 
@@ -265,12 +289,19 @@
 
     $('createBtn').addEventListener('click', () => {
       if (!connected){ toast('还没连上房间服务，稍等两秒', true); return; }
-      send({
-        t: 'create',
-        name: $('roomName').value.trim(),
-        max: roomMax,
-        opts: { map: roomMap, mods: roomMods.join(',') },
-      });
+      const opts = { mods: roomMods.join(',') };
+      if (roomMap && roomMap.startsWith('custom:')){
+        // 自制地图：把整张图编码进分享码随房间配置下发，加入的人不需要事先保存过
+        const store = loadCustomMaps();
+        const m = store[roomMap.slice(7)];
+        if (!m){ toast('这张自制地图已被删除，请重新选图', true); return; }
+        opts.map = 'custom';
+        opts.mname = m.name || '自定义地图';
+        opts.mc = encodeMap({ name: m.name, tiles: m.tiles });
+      } else {
+        opts.map = roomMap;
+      }
+      send({ t: 'create', name: $('roomName').value.trim(), max: roomMax, opts });
     });
 
     $('roomList').addEventListener('click', e => {
@@ -298,6 +329,7 @@
       } else toast('房间码 ' + code);
     });
 
+    renderRoomCustomMaps();
     syncRoomOpts();
   };
 
