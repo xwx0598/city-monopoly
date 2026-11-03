@@ -356,30 +356,55 @@ Game.use('synergy', () => {
   }
 
   let hoverIdx = -1;
+  let muteIdx = -1;   // 刚点过的那块地：指针没离开它之前不再弹卡片
   const boardEl = $('board');
+
+  // 指针当前真正命中的地块索引；没落在任何地格上返回 -1
+  function tileUnder(ev){
+    const el = ev.target && ev.target.closest ? ev.target.closest('.tile') : null;
+    if (!el || !el.id || !/^tile\d+$/.test(el.id) || !el.isConnected) return -1;
+    return +el.id.slice(4);
+  }
+
+  // 每次指针移动都重新确认「到底在哪块地上」：一旦离开地格（移到棋盘中央、
+  // 骰子、掷骰子按钮、空白处……）立刻收起卡片。
+  // 只靠 #board 的 mouseleave 不行——在棋盘内部移动时它根本不会触发。
+  function syncTip(ev){
+    const i = tileUnder(ev);
+    if (i === hoverIdx){
+      if (i >= 0 && !TIP.classList.contains('hidden')) placeTip(ev);
+      return;
+    }
+    if (i < 0){
+      if (hoverIdx >= 0) hideTip();
+      muteIdx = -1;
+      return;
+    }
+    if (i === muteIdx){          // 点在同一块地上，等指针移开再说
+      if (hoverIdx >= 0) hideTip();
+      return;
+    }
+    muteIdx = -1;
+    if (document.querySelector('.overlay:not(.hidden)')){
+      // 弹窗期间不打扰（不记 hoverIdx，弹窗关掉后指针再动还能正常弹）
+      TIP.classList.add('hidden');
+      hoverIdx = -1;
+      return;
+    }
+    hoverIdx = i;
+    TIP.innerHTML = renderTip(i);
+    TIP.classList.remove('hidden');
+    placeTip(ev);
+    hiGroup(i);
+  }
+
   if (boardEl){
-    boardEl.addEventListener('mouseover', e => {
-      const el = e.target.closest && e.target.closest('.tile');
-      if (!el || !/^tile\d+$/.test(el.id)) return;
-      const i = +el.id.slice(4);
-      if (i === hoverIdx) return;
-      hoverIdx = i;
-      if (document.querySelector('.overlay:not(.hidden)')){
-        // 弹窗期间不打扰
-        TIP.classList.add('hidden');
-        return;
-      }
-      TIP.innerHTML = renderTip(i);
-      TIP.classList.remove('hidden');
-      placeTip(e);
-      hiGroup(i);
-    });
-    boardEl.addEventListener('mousemove', e => {
-      if (!TIP.classList.contains('hidden')) placeTip(e);
-    });
+    boardEl.addEventListener('mouseover', syncTip);
+    boardEl.addEventListener('mousemove', syncTip);
     boardEl.addEventListener('mouseleave', hideTip);
   }
-  document.addEventListener('mousedown', hideTip, true);
+  // 点下去先收起（同时记住这块地，避免手指还在原地就又把卡片弹回来）
+  document.addEventListener('mousedown', () => { muteIdx = hoverIdx; hideTip(); }, true);
 
   // 测试钩子
   Game.synApi = { defs: SYNERGY_DEFS, tierOf, countOf, renderTip, hideTip };

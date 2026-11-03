@@ -15,3 +15,4 @@ desktop.ini
 
 # 依赖目录（本项目为纯静态页，目前用不到，留作保险）
 node_modules/
+__pycache__/

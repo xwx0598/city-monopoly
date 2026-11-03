@@ -63,6 +63,21 @@ args.forEach(a => {
   if (m[1] === 'only') opt.only = m[2].split(',').map(s => parseInt(s, 10)).filter(Boolean);
 });
 
+// 探测浏览器 headless 是否真的能用：Edge 156.0.4314.58 起 --headless=new --dump-dom
+// 静默不输出（升级前正常），所以不能只看文件存在，得实际 dump 一次验证。
+function browserWorks(exe){
+  const profile = mkdtempSync(path.join(tmpdir(), 'cm-probe-'));
+  try {
+    const res = spawnSync(exe, [
+      '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run', '--disable-extensions',
+      '--user-data-dir=' + profile, '--virtual-time-budget=1000', '--dump-dom',
+      'data:text/html,<b title=probe>probe</b>',
+    ], { encoding: 'utf8', timeout: 30000 });
+    return typeof res.stdout === 'string' && res.stdout.includes('probe');
+  } catch { return false; }
+  finally { try { rmSync(profile, { recursive: true, force: true }); } catch {} }
+}
+
 function findBrowser(){
   const cands = [
     process.env.SELFTEST_BROWSER,
@@ -71,9 +86,9 @@ function findBrowser(){
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ].filter(Boolean);
-  for (const c of cands) if (existsSync(c)) return c;
-  return null;
+  ].filter(Boolean).filter(existsSync);
+  for (const c of cands) if (browserWorks(c)) return c;
+  return cands[0] || null;   // 全部探测失败时仍返回第一个，让正式跑给出直观报错
 }
 
 const BROWSER = findBrowser();
