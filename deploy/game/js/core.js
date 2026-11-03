@@ -371,26 +371,63 @@ function positionTokens(){
 }
 
 // ================= 渲染 =================
+// 玩家卡持久化：首次建骨架，之后只对「内容有变化的字段」写 DOM。
+// 旧实现每次 renderPlayers 都整栏 innerHTML 重建（一局 480+ 次），DOM 节点反复
+// 销毁重建，白付解析/布局/GC 成本，还顺带丢掉卡片上的悬停态。字段级 diff 后
+// 大多数调用一次 DOM 写入都不发生。
+let PC_REFS = null;   // [{card, name, money, badges, props}]，与 players 同序
+let PC_CACHE = null;  // 每张卡各字段上次写入的 HTML，用于跳过未变化字段
+
+function playerCardBuild(pi){
+  return `<div class="pcard" id="pc${pi}">
+    <div class="pname"></div>
+    <div class="pmoney"></div>
+    <div class="pcombos"></div>
+    <div class="pprops"></div>
+  </div>`;
+}
+
 function renderPlayers(){
-  $('playersBar').innerHTML = players.map((p, pi) => {
-    let suffix = '', badges = '';
-    Game.nameSuffix.forEach(f => { try { suffix += f(pi) || ''; } catch(e){} });
-    if (!p.bankrupt) Game.badges.forEach(f => { try { badges += f(pi) || ''; } catch(e){} });
-    return `
-    <div class="pcard${pi === turn && !gameOver ? ' current' : ''}${p.bankrupt ? ' broke' : ''}" id="pc${pi}">
-      <div class="pname"><span class="pdot" style="background:${p.color}"></span><span class="pnm">${p.name}</span>${suffix}</div>
-      <div class="pmoney${!p.bankrupt && p.money < riskLine(pi) ? ' danger' : ''}">${icon('dollar')}${p.money}${!p.bankrupt && p.money < riskLine(pi) ? ' ⚠️' : ''}</div>
-      <div class="pcombos">${badges}</div>
-      <div class="pprops">${p.props.length ? p.props.map(i => TILES[i].name +
-        (tileMortgaged[i] ? '(抵押)' : (tileLevel[i] ? `(${LEVEL_NAME[tileLevel[i]]})` : ''))).join('、') : '暂无地产'}</div>
-    </div>`;
-  }).join('');
+  const bar = $('playersBar');
+  if (!PC_REFS || bar.children.length !== players.length){
+    bar.innerHTML = players.map((_, pi) => playerCardBuild(pi)).join('');
+    PC_REFS = players.map((_, pi) => {
+      const card = bar.children[pi];
+      return { card,
+        name: card.querySelector('.pname'),
+        money: card.querySelector('.pmoney'),
+        badges: card.querySelector('.pcombos'),
+        props: card.querySelector('.pprops') };
+    });
+    PC_CACHE = players.map(() => ({}));
+  }
+  players.forEach((p, pi) => {
+    const ref = PC_REFS[pi], cache = PC_CACHE[pi];
+    const suffix = Game.nameSuffix.map(f => { try { return f(pi) || ''; } catch(e){ return ''; } }).join('');
+    const badges = p.bankrupt ? '' : Game.badges.map(f => { try { return f(pi) || ''; } catch(e){ return ''; } }).join('');
+    const danger = !p.bankrupt && p.money < riskLine(pi);
+    const moneyCls = 'pmoney' + (danger ? ' danger' : '');
+    const moneyHtml = icon('dollar') + p.money + (danger ? ' ⚠️' : '');
+    const propsHtml = p.props.length ? p.props.map(i => TILES[i].name +
+      (tileMortgaged[i] ? '(抵押)' : (tileLevel[i] ? `(${LEVEL_NAME[tileLevel[i]]})` : ''))).join('、') : '暂无地产';
+
+    const cls = 'pcard' + (pi === turn && !gameOver ? ' current' : '') + (p.bankrupt ? ' broke' : '');
+    if (cache.cls !== cls){ ref.card.className = cls; cache.cls = cls; }
+    if (cache.moneyCls !== moneyCls){ ref.money.className = moneyCls; cache.moneyCls = moneyCls; }
+    if (cache.name !== suffix){
+      ref.name.innerHTML = `<span class="pdot" style="background:${p.color}"></span><span class="pnm">${p.name}</span>${suffix}`;
+      cache.name = suffix;
+    }    if (cache.money !== moneyHtml){ ref.money.innerHTML = moneyHtml; cache.money = moneyHtml; }
+    if (cache.badges !== badges){ ref.badges.innerHTML = badges; cache.badges = badges; }
+    if (cache.props !== propsHtml){ ref.props.innerHTML = propsHtml; cache.props = propsHtml; }
+  });
   Game.afterRender.forEach(f => { try { f(); } catch(e){} });
   updateBuildBtn();
   // 联机：几乎所有状态变化最后都会走这里，统一在此触发快照广播（mp.js 做节流）
   if (GAME_MODE === 'mp' && !Game._applying && window.MPNet) MPNet.sync();
 }
 
+let _logScrollQueued = false;
 function log(msg, cls = ''){
   const d = document.createElement('div');
   if (cls) d.className = cls;
@@ -398,7 +435,12 @@ function log(msg, cls = ''){
   const box = $('log');
   box.appendChild(d);
   if (box.children.length > 80) box.removeChild(box.firstChild);
-  box.scrollTop = 1e6;
+  // 同一帧内的多条日志只滚动一次：scrollTop 赋值会强制同步布局，
+  // 一局 400+ 条日志各自滚一次是纯浪费（探针实测累计 ~276ms）
+  if (!_logScrollQueued){
+    _logScrollQueued = true;
+    requestAnimationFrame(() => { _logScrollQueued = false; box.scrollTop = 1e6; });
+  }
 }
 
 function floatMoney(pi, delta){
