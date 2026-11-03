@@ -410,6 +410,17 @@
     #log { height:120px; flex:0 0 auto; }
   }
 
+  @media (max-width: 560px){
+    #auctionModal .modal { padding:16px 10px; }
+    .auc-stage { height:236px; }
+    .auc-table { width:178px; height:100px; border-width:6px; }
+    .auc-lot-price { font-size:21px; }
+    .auc-seat { width:94px; padding:4px 5px 5px; }
+    .s-top, .s-bottom { margin-left:-47px; }
+    .auc-name { font-size:11px; }
+    .auc-money { font-size:10px; }
+  }
+
 /* ============ 对局统计面板（m-stats） ============ */
 #statsBody { max-height: 62vh; overflow: auto; text-align: left; }
 .stat-sec { margin: 12px 0 6px; font-size: 13px; font-weight: 700; color: #2C2A26; }

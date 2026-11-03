@@ -1129,6 +1129,8 @@ async function runAuction(i, lander){
       }
     } else {
       bid = await aucHumanTurn(pi, highBid, leader === pi);
+      // 人类领先者点「保留出价」：不移出竞拍，之后仍可再加价
+      if (bid === null && leader === pi) hold = true;
     }
 
     if (hold){
