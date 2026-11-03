@@ -59,6 +59,11 @@ Game.use('extra-tiles', () => {
 
   // ---- 拍卖行 ----
   Game.tileHandlers.auction = async (pi) => {
+    // 联机：拍卖只在落格者浏览器里跑，其他人类玩家看不到弹窗也没法出价，直接歇脚
+    if (GAME_MODE === 'mp'){
+      log(`🔨 ${players[pi].name} 落在拍卖行，联机模式暂不开放拍卖，歇脚`);
+      return;
+    }
     const pickable = TILES.map((t, k) => (t.type === 'prop' || t.type === 'station' || t.type === 'utility') ? k : -1)
       .filter(k => k >= 0 && tileOwner[k] === undefined);
     if (!pickable.length){

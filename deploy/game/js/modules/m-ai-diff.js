@@ -111,15 +111,19 @@ Game.use('ai-diff', () => {
   }
 
   // 拍卖出价上限：按难度给不同心理价位（竞拍时不超过现金-100 安全垫）
+  // 硬约束与 aiWantsBuy 同一套：性格不碰的地、会被对手占优的组，拍卖价再便宜也不拍——
+  // 否则会出现"刚才死活不买、进拍卖抢着出价"的人格分裂
   function aiBidValue(pi, i){
     const t = TILES[i], p = players[pi];
+    const s = groupState(pi, i);
+    const ps = personaOf(pi);
+    if (ps === 'renter' && t.type !== 'station' && t.type !== 'utility' && s.mine !== s.size - 1) return 0;
+    if (s.opp >= 2 && !(AI_ATTR && AI_ATTR.tactic === 'hard' && s.opp === s.size - 1)) return 0;
     const style = AI_ATTR ? AI_ATTR.buy : 'normal';
     let factor = style === 'easy' ? 0.5 : style === 'normal' ? 0.7 : 0.9;
-    const ps = personaOf(pi);
     if (ps === 'tycoon') factor += 0.1;                                          // 圈地狂舍得加价
-    if (ps === 'renter') factor += (t.type === 'station' || t.type === 'utility') ? 0.2 : -0.15;
+    if (ps === 'renter' && (t.type === 'station' || t.type === 'utility')) factor += 0.2;
     if (ps === 'bully') factor += 0.2;                                           // 老赖为阻击而抬价
-    const s = groupState(pi, i);
     if (s.mine === s.size - 1) factor += 0.25;                                  // 买下即凑齐垄断 → 舍得加钱
     if (AI_ATTR && AI_ATTR.tactic === 'hard' && s.opp === s.size - 1) factor += 0.2;  // 阻击对手凑垄断
     const cap = Math.min(Math.round(t.price * factor), p.money - 100);

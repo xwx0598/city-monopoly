@@ -1022,7 +1022,7 @@ async function resolveLanding(pi, depth = 0){
 // ================= 拍卖（经典规则：放弃购买的地块由全体玩家竞价） =================
 const BID_STEP = 10, MIN_BID = 10;
 
-function aucHumanTurn(pi, highBid){
+function aucHumanTurn(pi, highBid, isLeader){
   return new Promise(resolve => {
     const base = Math.max(highBid + BID_STEP, MIN_BID);
     const p = players[pi];
@@ -1033,6 +1033,8 @@ function aucHumanTurn(pi, highBid){
     $('aucB50').disabled = highBid + 50 > p.money;
     $('aucB100').disabled = highBid + 100 > p.money;
     $('aucPass').disabled = false;
+    // 领先者"放弃"≠弃拍：保留当前最高价、只是不再加价（仍是潜在买家）
+    $('aucPass').textContent = isLeader ? '保留出价（不再加价）' : '弃拍';
     const done = v => {
       ['aucB10','aucB50','aucB100','aucPass'].forEach(id => $(id).onclick = null);
       resolve(v);
@@ -1045,6 +1047,8 @@ function aucHumanTurn(pi, highBid){
 }
 
 async function runAuction(i, lander){
+  // 联机兜底：任何进拍卖的路径（地块/弃买）在联机一律跳过，防止只有落格者能出价
+  if (GAME_MODE === 'mp'){ log('🤝 联机模式暂不开放拍卖'); return; }
   const t = TILES[i];
   let remaining = players.map((p, pi) => p.bankrupt ? null : pi).filter(x => x !== null);
   if (remaining.length < 2){ log(`🔨 场上可竞拍玩家不足，「${t.name}」流拍`); return; }
@@ -1063,27 +1067,34 @@ async function runAuction(i, lander){
       `<span style="font-size:12px;color:#9C9789">仍在竞拍：${remaining.map(x => players[x].name).join('、')}</span>`;
     $('aucCur').textContent = `轮到 ${players[pi].name}（现金 ¥${players[pi].money}）`;
 
-    let bid = null;
+    let bid = null, hold = false;   // hold = 领先者按兵不动：保持最高价、不移出竞拍
     if (players[pi].isAI){
-      ['aucB10','aucB50','aucB100','aucPass'].forEach(id => $(id).disabled = true);
-      $('aucCur').textContent = `${players[pi].name} 思考中…`;
-      await sleep(480 + Math.random()*320);
-      const cap = Game.ai.bidValue ? Game.ai.bidValue(pi, i) : Math.min(Math.round(t.price * 0.6), players[pi].money - 100);
-      if (highBid === 0){
-        const open = Math.max(MIN_BID, Math.round(t.price * 0.3 / BID_STEP) * BID_STEP);
-        if (cap >= open) bid = open;
+      if (leader === pi){
+        // 已是最高价：英式拍卖里最优策略就是不再加价（自抬只会把成交价推向自己的上限）
+        hold = true;
       } else {
-        // 加价幅度按地价走（约 6%，至少 ¥10）：固定 +¥10 会让人盯着一场 AI 互相抬价
-        // 抬四十多轮、干等半分钟才成交，节奏太差
-        const step = Math.max(BID_STEP, Math.round(t.price * 0.06 / BID_STEP) * BID_STEP);
-        const next = highBid + step;
-        if (cap >= next && Math.random() < 0.75) bid = next;   // 75% 概率跟进
+        ['aucB10','aucB50','aucB100','aucPass'].forEach(id => $(id).disabled = true);
+        $('aucCur').textContent = `${players[pi].name} 思考中…`;
+        await sleep(480 + Math.random()*320);
+        const cap = Game.ai.bidValue ? Game.ai.bidValue(pi, i) : Math.min(Math.round(t.price * 0.6), players[pi].money - 100);
+        if (highBid === 0){
+          const open = Math.max(MIN_BID, Math.round(t.price * 0.3 / BID_STEP) * BID_STEP);
+          if (cap >= open) bid = open;
+        } else {
+          // 加价幅度按地价走（约 6%，至少 ¥10）：固定 +¥10 会让人盯着一场 AI 互相抬价
+          // 抬四十多轮、干等半分钟才成交，节奏太差
+          const step = Math.max(BID_STEP, Math.round(t.price * 0.06 / BID_STEP) * BID_STEP);
+          const next = highBid + step;
+          if (cap >= next && Math.random() < 0.75) bid = next;   // 75% 概率跟进
+        }
       }
     } else {
-      bid = await aucHumanTurn(pi, highBid);
+      bid = await aucHumanTurn(pi, highBid, leader === pi);
     }
 
-    if (bid === null){
+    if (hold){
+      pos++;   // 保持出价，轮到下一位
+    } else if (bid === null){
       log(`🔨 ${players[pi].name} 弃拍`);
       remaining.splice(pos % remaining.length, 1);
       if (pos >= remaining.length) pos = 0;
