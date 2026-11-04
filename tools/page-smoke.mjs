@@ -41,6 +41,12 @@ const PAGES = [
               (document.querySelector('#log')?.children.length||0) > 0,
               info: '棋盘 ' + document.querySelectorAll('#board .tile').length + ' 格 / 日志 ' +
                     (document.querySelector('#log')?.children.length||0) + ' 条' })` },
+  { name: '单文件版', url: `http://127.0.0.1:${PORT}/` + encodeURIComponent('城市大富翁-单文件版.html') + `?mode=ai&ai=2&map=classic&fast=1&new=1`, wait: 2500,
+    check: `({ ok: document.querySelectorAll('#board .tile').length >= 20 &&
+              (document.querySelector('#log')?.children.length||0) > 0 &&
+              !document.querySelector('a[href*="lobby"]'),
+              info: '棋盘 ' + document.querySelectorAll('#board .tile').length + ' 格 / 日志 ' +
+                    (document.querySelector('#log')?.children.length||0) + ' 条' })` },
 ];
 
 // ---------- 静态服务 ----------
