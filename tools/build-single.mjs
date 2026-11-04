@@ -21,7 +21,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const OUT = path.join(ROOT, '城市大富翁-单文件版.html');
+// 可选参数 1：输出路径（默认仓库根的单文件版；桌面构建会传入 desktop/resources/game.html）
+const OUT = process.argv[2] ? path.resolve(ROOT, process.argv[2]) : path.join(ROOT, '城市大富翁-单文件版.html');
 const GAME_HTML = path.join(ROOT, 'game/html/game.html');
 
 // 基础模块清单：与 config.js 的 MB_MODULES 保持一致（可选玩法不进单文件）
@@ -70,6 +71,9 @@ else good('CSS 与 JS 全部内联（含 ' + INCLUDE.length + ' 个 JS 文件）
 // ① 去掉「返回大厅」（单文件无大厅）
 out = out.replace(/\s*<a class="btn-ghost" href="\.\.\/\.\.\/lobby\/html\/index\.html">[^<]*<\/a>/, '');
 if (out.includes('lobby/html/index.html')) bad('大厅链接未移除');
+
+// ①b 摘除 PWA 清单链接（站点根路径引用，单文件/桌面壳都不需要；theme-color 保留无妨）
+out = out.replace(/\s*<link rel="manifest" href="\/manifest\.webmanifest">/, '');
 
 // ② boot 的自检动态加载改为空操作（_selftest.js 已内联，避免 file:// 404）
 out = out.replace(

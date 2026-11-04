@@ -74,6 +74,25 @@ python -m http.server 8686       # 最简静态服务，但会被浏览器缓存
 - **限制**：Chrome 要求安全上下文——`localhost` 天然可装；局域网 `http://192.168.x.x` 不会弹安装提示（浏览器安全策略），想给手机装需要配 HTTPS（如 Cloudflare Tunnel）；iOS Safari 从「分享 → 添加到主屏幕」安装
 - 图标由 `tools/gen-icons.mjs` 从内联 SVG 渲染生成，改了图标跑一次即可重新生成
 
+## 桌面版（PC，Neutralino 壳）
+
+不装浏览器也能玩：用 [Neutralino](https://neutralino.js.org) 把「核心+基础模块」打成原生窗口应用（Windows 下约 2.9MB），双击 exe 直接进开始菜单。
+
+```bash
+# 首次准备（进入 desktop/ 装壳工具并下载运行时）
+cd desktop && npm install --cache .npm-cache && npx neu update && cd ..
+
+# 改了游戏源码后刷新桌面资源 + 重新打包
+node tools/build-desktop.mjs
+cd desktop && npx neu build --release
+# 产物：desktop/dist/CityMonopoly/（CityMonopoly-win_x64.exe + resources.neu 两个文件即 Windows 完整包）
+```
+
+- **内容**：与单文件版一致（核心 + 8 基础模块，可选玩法在开始菜单按局勾选）；联机不在桌面版里
+- **开始菜单**：选模式（单机 AI / 本地同屏）、AI 难度、地图、可选玩法；有存档时出现「继续上局」
+- **存档**：跟随系统 WebView2 用户目录，升级应用不丢档
+- 验证：`node tools/desktop-test.mjs`（起壳的真实服务器 → 无头浏览器走开始菜单交互 + 对局页启动）
+
 ## 联机对战（房间模式）
 
 大厅第三张卡「联机对战」→ 起个昵称 → **创建房间**（选地图、人数、玩法套餐）或从房间列表里挑一个加入。房间码是 4 位数字，口头报给同一局域网的朋友即可，没有匹配、没有大厅聊天室，就是三国杀 / QQ 游戏大厅那种「进房间坐下」。
@@ -205,7 +224,7 @@ node tools/sync-deploy.mjs
 
 - 联机只做房间制，**没有匹配、没有观战**；断线玩家由 AI 托管代打（重连即收回），行动者掉线不再停摆
 - 跨公网需要自己做端口转发或内网穿透，仓库里没有内置 TLS/鉴权，别直接暴露到公网
-- 手机竖屏未做专项适配，横屏体验较好
+- 桌面版走系统 WebView2（Win10 1803+/Win11 自带），联机不在桌面版里；移动端（触摸/竖屏）暂不考虑
 - 无音效
 
 ## License

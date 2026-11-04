@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>城市大富翁</title>
+<style>
+  :root {
+    --bg1:#9BA3AB; --bg2:#868E97; --bg3:#6C737C;
+    --oat:#E7E2D8; --cream:#F1EDE4; --paper:#F7F4ED;
+    --slate:#6E7C88; --slate-deep:#5A6772; --slate-soft:#93A0AA;
+    --camel:#B08968; --camel-deep:#8E6B4E;
+    --clay:#A9605A;
+    --ink:#33312C; --ink-2:#5C5951; --ink-3:#8B8779;
+    --line:#D9D2C3;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(150deg, var(--bg1), var(--bg2) 55%, var(--bg3));
+    font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:var(--ink);
+    padding:24px;
+  }
+  .panel {
+    width:min(560px, 100%);
+    background:linear-gradient(165deg, var(--paper) 0%, var(--cream) 100%);
+    border-radius:18px; padding:30px 34px 26px;
+    box-shadow:0 24px 60px rgba(30,34,40,.35), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  h1 { font-size:26px; letter-spacing:2px; text-align:center; }
+  .sub { text-align:center; color:var(--ink-3); font-size:12px; margin:6px 0 20px; letter-spacing:1px; }
+  .row { margin-bottom:16px; }
+  .label { font-size:13px; color:var(--ink-2); margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .label::before { content:""; width:4px; height:14px; background:var(--camel); border-radius:2px; }
+  .segs { display:flex; gap:8px; flex-wrap:wrap; }
+  .seg {
+    flex:1; min-width:88px; padding:9px 6px; text-align:center; font-size:14px;
+    background:var(--oat); border:1px solid var(--line); border-radius:10px;
+    cursor:pointer; user-select:none; transition:all .15s; color:var(--ink-2);
+  }
+  .seg:hover { border-color:var(--slate-soft); }
+  .seg.on { background:var(--slate); color:#fff; border-color:var(--slate-deep); box-shadow:inset 0 -2px 0 rgba(0,0,0,.12); }
+  .seg small { display:block; font-size:11px; opacity:.75; margin-top:2px; }
+  .seg input { width:64px; border:1px solid var(--line); border-radius:6px; padding:3px 6px; font-size:13px; text-align:center; }
+  .mods { display:flex; flex-wrap:wrap; gap:8px; }
+  .mod {
+    display:flex; align-items:center; gap:5px; font-size:13px; color:var(--ink-2);
+    background:var(--oat); border:1px solid var(--line); border-radius:10px;
+    padding:8px 12px; cursor:pointer; user-select:none; transition:all .15s;
+  }
+  .mod:hover { border-color:var(--slate-soft); }
+  .mod.on { background:var(--camel); color:#fff; border-color:var(--camel-deep); }
+  .btns { display:flex; gap:12px; margin-top:22px; }
+  button {
+    flex:1; padding:13px 0; font-size:16px; letter-spacing:2px; border:none; border-radius:12px;
+    cursor:pointer; font-family:inherit; transition:transform .1s, box-shadow .15s;
+  }
+  button:active { transform:translateY(1px); }
+  #startBtn { background:var(--slate); color:#fff; box-shadow:0 6px 16px rgba(90,103,114,.35); }
+  #startBtn:hover { background:var(--slate-deep); }
+  #resumeBtn { background:var(--oat); color:var(--ink-2); border:1px solid var(--line); }
+  #resumeBtn:hover { border-color:var(--slate-soft); }
+  #resumeBtn.hidden { display:none; }
+  .foot { text-align:center; font-size:11px; color:var(--ink-3); margin-top:14px; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>城 市 大 富 翁</h1>
+  <div class="sub">MONOPOLY · 桌面版</div>
+
+  <div class="row">
+    <div class="label">对局模式</div>
+    <div class="segs" id="modeSegs">
+      <div class="seg on" data-mode="ai">单机 vs AI</div>
+      <div class="seg" data-mode="hotseat">本地同屏</div>
+    </div>
+  </div>
+
+  <div class="row" id="aiRow">
+    <div class="label">AI 数量与难度</div>
+    <div class="segs" id="aiCountSegs">
+      <div class="seg" data-ai="1">1 个 AI</div>
+      <div class="seg on" data-ai="2">2 个 AI</div>
+      <div class="seg" data-ai="3">3 个 AI</div>
+    </div>
+    <div class="segs" style="margin-top:8px" id="diffSegs">
+      <div class="seg" data-diff="easy">简单</div>
+      <div class="seg on" data-diff="normal">普通</div>
+      <div class="seg" data-diff="hard">困难</div>
+    </div>
+  </div>
+
+  <div class="row hidden" id="hsRow" style="display:none">
+    <div class="label">同屏人数</div>
+    <div class="segs">
+      <div class="seg" data-n="2">2 人</div>
+      <div class="seg on" data-n="3">3 人</div>
+      <div class="seg" data-n="4">4 人</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="label">城市地图</div>
+    <div class="segs" id="mapSegs">
+      <div class="seg" data-map="mini">迷你快棋<small>20 格 · 快</small></div>
+      <div class="seg on" data-map="classic">经典小城<small>24 格 · 标准</small></div>
+      <div class="seg" data-map="metro">繁华都会<small>32 格 · 完全体</small></div>
+      <div class="seg" data-map="random">随机岛屿<small>每局新样</small></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="label">可选玩法（默认全关）</div>
+    <div class="mods" id="modSegs">
+      <div class="mod" data-mod="synergy">🧩 羁绊</div>
+      <div class="mod" data-mod="weather">🌦 天气</div>
+      <div class="mod" data-mod="items">🎒 道具</div>
+      <div class="mod" data-mod="stocks">📈 股票</div>
+      <div class="mod" data-mod="quests">🎯 悬赏</div>
+      <div class="mod" data-mod="visit">🏦 探监</div>
+      <div class="mod" data-mod="vote">🏛 议案</div>
+    </div>
+  </div>
+
+  <div class="btns">
+    <button id="startBtn">开始新对局</button>
+    <button id="resumeBtn">继续上局</button>
+  </div>
+  <div class="foot">存档与设置自动保存在本机</div>
+</div>
+
+<script>
+(function(){
+  const SAVE_PREFIX = 'monopoly_save_v3_';
+  let mode = 'ai', ai = 2, diff = 'normal', n = 3, map = 'classic';
+  const mods = new Set();
+
+  // 存档探测：有任意存档才显示「继续上局」
+  try {
+    const has = Object.keys(localStorage).some(k => k.startsWith(SAVE_PREFIX));
+    if (!has) document.getElementById('resumeBtn').classList.add('hidden');
+  } catch(e) {}
+
+  function seg(containerId, onPick){
+    const box = document.getElementById(containerId);
+    box.addEventListener('click', e => {
+      const el = e.target.closest('.seg,.mod');
+      if (!el || !box.contains(el)) return;
+      const key = el.dataset.mode !== undefined ? 'mode' : el.dataset.ai !== undefined ? 'ai'
+        : el.dataset.diff !== undefined ? 'diff' : el.dataset.n !== undefined ? 'n'
+        : el.dataset.map !== undefined ? 'map' : el.dataset.mod !== undefined ? 'mod' : null;
+      if (!key) return;
+      if (key === 'mod'){
+        const m = el.dataset.mod;
+        if (mods.has(m)) { mods.delete(m); el.classList.remove('on'); }
+        else { mods.add(m); el.classList.add('on'); }
+        return;
+      }
+      [...box.querySelectorAll('.seg')].forEach(s => s.classList.remove('on'));
+      el.classList.add('on');
+      onPick(el.dataset[key]);
+    });
+  }
+
+  seg('modeSegs', v => { mode = v;
+    document.getElementById('aiRow').style.display  = v === 'ai' ? '' : 'none';
+    document.getElementById('hsRow').style.display  = v === 'hotseat' ? '' : 'none';
+  });
+  seg('aiCountSegs', v => ai = +v);
+  seg('diffSegs', v => diff = v);
+  seg('hsRow', v => n = +v);
+  seg('mapSegs', v => map = v);
+  seg('modSegs', null);
+
+  function buildQS(isNew){
+    const q = new URLSearchParams();
+    if (isNew) q.set('new', '1');
+    q.set('map', map);
+    if (mode === 'ai'){
+      q.set('mode', 'ai'); q.set('ai', String(ai));
+      q.set('buy', diff); q.set('build', diff); q.set('tactic', diff);
+    } else {
+      q.set('mode', 'hotseat'); q.set('n', String(n));
+    }
+    if (mods.size) q.set('mods', [...mods].join(','));
+    return q.toString();
+  }
+
+  document.getElementById('startBtn').onclick = () => location.href = 'game.html?' + buildQS(true);
+  document.getElementById('resumeBtn').onclick = () => location.href = 'game.html?' + buildQS(false);
+})();
+</script>
+</body>
+</html>

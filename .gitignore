@@ -16,3 +16,10 @@ desktop.ini
 # 依赖目录（本项目为纯静态页，目前用不到，留作保险）
 node_modules/
 __pycache__/
+
+# 桌面壳（Neutralino）：二进制与构建产物不进版本库，neu update / neu build 可随时重建
+desktop/bin/
+desktop/dist/
+desktop/node_modules/
+desktop/.npm-cache/
+desktop/neu-*.log

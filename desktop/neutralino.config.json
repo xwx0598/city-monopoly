@@ -1,0 +1,39 @@
+{
+  "$comment": "城市大富翁 · PC 桌面壳（Neutralino）。资源根 = resources/，入口 index.html 是开始菜单，game.html 由 tools/build-desktop.mjs 从源码生成。",
+  "applicationId": "com.citymonopoly.app",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "port": 0,
+  "documentRoot": "/resources/",
+  "url": "/",
+  "enableServer": true,
+  "enableNativeAPI": false,
+  "tokenSecurity": "one-time",
+  "logging": {
+    "enabled": false
+  },
+  "nativeAllowList": [],
+  "modes": {
+    "window": {
+      "title": "城市大富翁",
+      "width": 1280,
+      "height": 800,
+      "minWidth": 980,
+      "minHeight": 640,
+      "icon": "/resources/icons/appIcon.png",
+      "fullScreen": false,
+      "alwaysOnTop": false,
+      "enableInspector": false,
+      "borderless": false,
+      "maximize": false
+    }
+  },
+  "cli": {
+    "binaryName": "CityMonopoly",
+    "binaryVersion": "5.6.0",
+    "clientVersion": "5.6.0",
+    "resourcesPath": "/resources/",
+    "extensionsPath": "/extensions/",
+    "binaryPath": "/bin"
+  }
+}
