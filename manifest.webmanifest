@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "城市大富翁",
+  "short_name": "大富翁",
+  "description": "纯前端大富翁：单机 AI、本地同屏、联机对战，一张环形棋盘玩到底。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "/lobby/html/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F7F4EC",
+  "theme_color": "#1D9E75",
+  "categories": ["games"],
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "单机 vs AI",
+      "url": "/game/html/game.html?mode=ai&ai=3&new=1",
+      "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "联机对战",
+      "url": "/lobby/html/index.html#online",
+      "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

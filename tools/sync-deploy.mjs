@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dest = join(root, 'deploy');
 
-const ENTRIES = ['index.html', 'lobby', 'game', 'assets'];
+const ENTRIES = ['index.html', 'lobby', 'game', 'assets', 'manifest.webmanifest', 'sw.js'];
 
 if (!existsSync(join(root, 'lobby', 'html', 'index.html'))) {
   console.error('✗ 找不到 lobby/html/index.html，请在仓库根目录下运行');

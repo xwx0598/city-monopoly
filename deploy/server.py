@@ -18,7 +18,12 @@ import threading
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
+import mimetypes
 import mp
+
+# PWA 清单的正确 MIME；Windows 注册表里常常没有这条，会被当成二进制流
+mimetypes.add_type("application/manifest+json", ".webmanifest")
+mimetypes.add_type("text/javascript", ".js")
 
 ROOT = None  # 见 pick_root()
 DEFAULT_PORT = 8686
