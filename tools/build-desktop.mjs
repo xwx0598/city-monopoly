@@ -21,9 +21,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const RES = path.join(ROOT, 'desktop/resources');
 
-console.log('① 生成对局页（单文件版 → desktop/resources/game.html）');
+console.log('① 生成对局页（全量模块 → desktop/resources/game.html）');
 execFileSync(process.execPath, [path.join(HERE, 'build-single.mjs'),
-  'desktop/resources/game.html'], { stdio: 'inherit' });
+  'desktop/resources/game.html', '--full'], { stdio: 'inherit' });
 
 console.log('\n② 同步图标');
 fs.mkdirSync(path.join(RES, 'icons'), { recursive: true });

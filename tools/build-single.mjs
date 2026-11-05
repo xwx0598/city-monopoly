@@ -11,8 +11,9 @@
 //       股票/悬赏/探监/议案）与联机、大厅、地图编辑器不打包。
 //       自检脚本一并内联（只在 ?selftest=1 时激活，正常游玩零开销）。
 //
-// 用法：node tools/build-single.mjs
-// 产物：城市大富翁-单文件版.html（仓库根目录）
+// 用法：node tools/build-single.mjs [输出路径] [--full]
+//   无参数      → 城市大富翁-单文件版.html（基础完整：核心 + 8 基础模块）
+//   --full      → 含 7 个可选玩法模块（桌面版用；模块仍按 ?mods= 激活）
 // 退出码 0=构建成功且通过基本断言，1=失败。
 // ================================================================
 import fs from 'node:fs';
@@ -21,20 +22,35 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-// 可选参数 1：输出路径（默认仓库根的单文件版；桌面构建会传入 desktop/resources/game.html）
-const OUT = process.argv[2] ? path.resolve(ROOT, process.argv[2]) : path.join(ROOT, '城市大富翁-单文件版.html');
+// 参数：--full = 全量模式（含 7 个可选玩法模块，供桌面版用；模块自身按 ?mods= 决定启不启用）
+//       其余非 -- 开头的参数 = 输出路径（默认仓库根的单文件版）
+const ARGS = process.argv.slice(2);
+const FULL = ARGS.includes('--full');
+const outArg = ARGS.find(a => !a.startsWith('--'));
+const OUT = outArg ? path.resolve(ROOT, outArg) : path.join(ROOT, '城市大富翁-单文件版.html');
 const GAME_HTML = path.join(ROOT, 'game/html/game.html');
 
-// 基础模块清单：与 config.js 的 MB_MODULES 保持一致（可选玩法不进单文件）
-const INCLUDE = [
+// 基础模块清单：与 config.js 的 MB_MODULES 保持一致
+const INCLUDE_BASE = [
   'icons.js', 'config.js', 'core.js',
   'modules/m-maps.js', 'modules/m-special.js', 'modules/m-chance.js',
   'modules/m-combos.js', 'modules/m-ai-diff.js', 'modules/m-trade.js',
   'modules/m-extra-tiles.js', 'modules/m-stats.js',
   '_selftest.js', 'boot.js',
 ];
-const EXCLUDE_HINTS = ['mp.js', 'm-synergy', 'm-weather', 'm-items', 'm-stocks',
-  'm-quests', 'm-visit', 'm-vote'];   // 出现在引用里就报错，防止清单漂移
+// 可选玩法模块：仅 --full 打包（顺序与 game.html 一致）
+const OPTIONAL = [
+  'modules/m-synergy.js', 'modules/m-items.js', 'modules/m-stocks.js',
+  'modules/m-quests.js', 'modules/m-visit.js', 'modules/m-vote.js',
+  'modules/m-weather.js',
+];
+const SELFTEST_AT = INCLUDE_BASE.indexOf('_selftest.js');
+const INCLUDE = FULL
+  ? [...INCLUDE_BASE.slice(0, SELFTEST_AT), ...OPTIONAL, ...INCLUDE_BASE.slice(SELFTEST_AT)]
+  : INCLUDE_BASE;
+// 出现在引用里就报错，防止清单漂移（全量模式只排除联机）
+const EXCLUDE_HINTS = FULL ? ['mp.js']
+  : ['mp.js', 'm-synergy', 'm-weather', 'm-items', 'm-stocks', 'm-quests', 'm-visit', 'm-vote'];
 
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
 let fail = 0;
@@ -68,8 +84,14 @@ if (leftover.length) bad('仍有未内联的脚本引用: ' + leftover.join(', '
 else good('CSS 与 JS 全部内联（含 ' + INCLUDE.length + ' 个 JS 文件）');
 
 // ---------- 2. 单文件适配补丁 ----------
-// ① 去掉「返回大厅」（单文件无大厅）
-out = out.replace(/\s*<a class="btn-ghost" href="\.\.\/\.\.\/lobby\/html\/index\.html">[^<]*<\/a>/, '');
+// ① 返回大厅：基础版删除（无大厅）；全量版（桌面版）改为「返回开始菜单」→ 同目录 index.html
+if (FULL){
+  out = out.replace(/<a class="btn-ghost" href="\.\.\/\.\.\/lobby\/html\/index\.html">[^<]*<\/a>/,
+    '<a class="btn-ghost" href="index.html">🏠 返回开始菜单</a>');
+  if (!out.includes('返回开始菜单')) bad('返回开始菜单链接未注入');
+} else {
+  out = out.replace(/\s*<a class="btn-ghost" href="\.\.\/\.\.\/lobby\/html\/index\.html">[^<]*<\/a>/, '');
+}
 if (out.includes('lobby/html/index.html')) bad('大厅链接未移除');
 
 // ①b 摘除 PWA 清单链接（站点根路径引用，单文件/桌面壳都不需要；theme-color 保留无妨）
@@ -91,8 +113,10 @@ out = out.replace(
 
 // ---------- 3. 基本断言 ----------
 console.log('\n产物断言：');
-if (/src="/.test(out) || /href="(?!#)[^"]*"/.test(out.replace(/<title>[^<]*<\/title>/, ''))) {
-  // 允许的 href：锚点。其余任何外部引用都算失败
+// 允许的 href：锚点；全量模式下额外允许「返回开始菜单」的同目录 index.html
+let noHref = out.replace(/<title>[^<]*<\/title>/, '');
+if (FULL) noHref = noHref.replace(/href="index\.html"/, '');
+if (/src="/.test(noHref) || /href="(?!#)[^"]*"/.test(noHref)) {
   bad('产物仍存在外部引用（src=/href=）');
 } else good('零外部引用（真单文件）');
 
@@ -102,7 +126,13 @@ else good('无旧版租金封顶 bug');
 for (const h of EXCLUDE_HINTS) {
   if (out.includes(`<script>\n// ══════ js/${h}`) || new RegExp(`src="[^"]*${h}`).test(out)) bad(`不应包含 ${h}`);
 }
-good('可选玩法 / 联机 / 大厅脚本未打包');
+if (FULL){
+  out.includes('══════ modules/m-synergy.js ══════')
+    ? good('可选玩法模块已全部内联（含 m-synergy 地块提示卡）')
+    : bad('全量模式缺 m-synergy（地块提示卡 + 羁绊）');
+} else {
+  out.includes('══════ modules/m-synergy.js ══════') ? bad('基础版不应包含可选玩法') : good('可选玩法 / 联机 / 大厅脚本未打包');
+}
 
 fs.writeFileSync(OUT, out);
 const kb = (fs.statSync(OUT).size / 1024).toFixed(1);

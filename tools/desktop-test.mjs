@@ -114,6 +114,55 @@ try {
     ? ok(`对局页启动正常（棋盘 ${tiles} 格 / ${pcards} 张玩家卡 / 日志 ${logs} 条）`)
     : bad(`对局页启动异常（${tiles} 格 / ${pcards} 卡 / ${logs} 日志）`);
 
+  // ---------- 5. 可选玩法模块（用户报的问题①：开羁绊后没有地块提示卡）----------
+  console.log('\n[可选玩法 · 羁绊 + 地块提示卡]');
+  await cdp('Page.navigate', { url: `http://127.0.0.1:${PORT}/game.html?mode=ai&ai=2&map=mini&seed=5&mods=synergy&fast=1&new=1` });
+  for (let k = 0; k < 40; k++) {
+    if (await ev(`!!document.getElementById('tile0')`)) break;
+    await sleep(250);
+  }
+  await ev(`(() => { const m = document.getElementById('resumeNo'); if (m) m.click();
+    document.querySelectorAll('.overlay:not(.hidden)').forEach(o => o.classList.add('hidden')); return 1; })()`);
+  await sleep(300);
+
+  const hasSynBtn = await ev(`!!document.getElementById('synBtn')`);
+  hasSynBtn ? ok('羁绊模块已加载（顶栏出现 🧩 羁绊入口）') : bad('羁绊模块未加载 —— 可选玩法缺失');
+
+  // 找一块「包围盒中心确实命中」的地块，发真实鼠标事件触发悬停卡
+  const nTile = await ev(`document.querySelectorAll('.tile[id^="tile"]').length`);
+  let hovered = false;
+  for (let i = 0; i < nTile && !hovered; i++) {
+    const r = await ev(`(() => { const el = document.getElementById('tile${i}');
+      if (!el) return null; const b = el.getBoundingClientRect();
+      return (b.width < 10) ? null : { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
+    if (!r) continue;
+    const hit = await ev(`(() => { const el = document.elementFromPoint(${r.x}, ${r.y});
+      const t = el && el.closest ? el.closest('.tile') : null; return t ? t.id : null; })()`);
+    if (hit !== 'tile' + i) continue;
+    await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x, y: r.y, buttons: 0, clickCount: 0 });
+    await sleep(250);
+    hovered = true;
+  }
+  const tip = await ev(`(() => { const t = document.getElementById('synTip');
+    return t ? { hidden: t.classList.contains('hidden'), text: (t.textContent || '').trim().length } : null; })()`);
+  (tip && !tip.hidden && tip.text > 0)
+    ? ok(`悬停地块弹出提示卡（${tip.text} 字）`)
+    : bad('悬停地块没有提示卡 —— ' + (tip ? '存在但未显示' : '元素不存在'));
+
+  // ---------- 6. 返回开始菜单（用户报的问题②）----------
+  console.log('\n[返回开始菜单]');
+  const back = await ev(`(() => { const a = [...document.querySelectorAll('a,button')]
+      .find(e => (e.textContent || '').includes('返回开始菜单'));
+    return a ? { href: a.getAttribute('href'), tag: a.tagName } : null; })()`);
+  back ? ok(`存在「返回开始菜单」（<${back.tag.toLowerCase()}> href=${back.href}）`) : bad('没有返回开始菜单入口');
+  if (back) {
+    await ev(`[...document.querySelectorAll('a,button')].find(e => (e.textContent||'').includes('返回开始菜单')).click(); 1`);
+    await sleep(1200);
+    const backOk = await ev(`(location.pathname.endsWith('/index.html') || location.pathname === '/') &&
+      !!document.getElementById('startBtn')`);
+    backOk ? ok('点击后回到开始菜单') : bad('点击后未回到开始菜单: ' + await ev(`location.href`));
+  }
+
   ws.close();
   try { rmSync(profile, { recursive: true, force: true }); } catch {}
 } catch (e) {

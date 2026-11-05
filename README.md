@@ -76,7 +76,7 @@ python -m http.server 8686       # 最简静态服务，但会被浏览器缓存
 
 ## 桌面版（PC，Neutralino 壳）
 
-不装浏览器也能玩：用 [Neutralino](https://neutralino.js.org) 把「核心+基础模块」打成原生窗口应用（Windows 下约 2.9MB），双击 exe 直接进开始菜单。
+不装浏览器也能玩：用 [Neutralino](https://neutralino.js.org) 把**全量模块版**打成原生窗口应用（Windows 下约 3MB），双击 exe 直接进开始菜单。
 
 ```bash
 # 首次准备（进入 desktop/ 装壳工具并下载运行时）
@@ -88,10 +88,12 @@ cd desktop && npx neu build --release
 # 产物：desktop/dist/CityMonopoly/（CityMonopoly-win_x64.exe + resources.neu 两个文件即 Windows 完整包）
 ```
 
-- **内容**：与单文件版一致（核心 + 8 基础模块，可选玩法在开始菜单按局勾选）；联机不在桌面版里
+- **内容**：全量模块（核心 + 8 基础模块 + 7 个可选玩法），与网页版功能对齐；可选玩法在开始菜单按局勾选，未勾选的模块不装载
 - **开始菜单**：选模式（单机 AI / 本地同屏）、AI 难度、地图、可选玩法；有存档时出现「继续上局」
+- **返回开始菜单**：对局页顶栏的「🏠 返回开始菜单」随时退出当前对局回到菜单
+- **联机不在桌面版里**（联机需要 Python 服务端，走网页版）
 - **存档**：跟随系统 WebView2 用户目录，升级应用不丢档
-- 验证：`node tools/desktop-test.mjs`（起壳的真实服务器 → 无头浏览器走开始菜单交互 + 对局页启动）
+- 验证：`node tools/desktop-test.mjs`（起壳的真实服务器 → 无头浏览器走开始菜单交互、可选玩法装载、地块提示卡、返回菜单）
 
 ## 联机对战（房间模式）
 

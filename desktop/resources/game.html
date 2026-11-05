@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>城市大富翁</title>
-<!-- 单文件版（基础完整）：由 tools/build-single.mjs 自动生成于 2026-11-04，请勿手改；改 game/ 源码后重新构建 -->
+<!-- 单文件版（基础完整）：由 tools/build-single.mjs 自动生成于 2026-11-05，请勿手改；改 game/ 源码后重新构建 -->
 <meta name="theme-color" content="#1D9E75">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
@@ -505,6 +505,7 @@
       </div>
     </div>
     <div class="actions">
+      <a class="btn-ghost" href="index.html">🏠 返回开始菜单</a>
       <button class="btn-ghost" id="statsBtn">📊 统计</button>
       <button class="btn-ghost" id="newGameBtn">🔄 新对局</button>
     </div>
@@ -3494,13 +3495,1460 @@ Game.use('stats', () => {
 });
 
 </script>
-<!-- 单文件版不含 modules/m-synergy.js -->
-<!-- 单文件版不含 modules/m-items.js -->
-<!-- 单文件版不含 modules/m-stocks.js -->
-<!-- 单文件版不含 modules/m-quests.js -->
-<!-- 单文件版不含 modules/m-visit.js -->
-<!-- 单文件版不含 modules/m-vote.js -->
-<!-- 单文件版不含 modules/m-weather.js -->
+<script>
+// ══════ modules/m-synergy.js ══════
+// ================================================================
+// 模块：金铲铲式羁绊（m-synergy）——可选玩法，大厅开关后经 ?mods=synergy 启用
+// 数据驱动：往 SYNERGY_DEFS 加一条定义 = 加一个羁绊，效果钩子按 kind 分发。
+// 颜色羁绊：同组地块 2 块达成一阶、垄断全组达成二阶（组大小自适应）；
+// 跨类羁绊：按持有数量 / 建筑等级触发。
+// 倍率与加成全部通过 Game.*Filters / onRound 钩子叠加，不侵入核心。
+// ================================================================
+Game.use('synergy', () => {
+  const CROSS_COLOR = { tycoon:'#B5806F', landlord:'#AD8A55', traveler:'#6E7C88' };
+
+  // ---- 羁绊定义 ----
+  // kind=group  : 颜色羁绊，tiers 阈值按组大小自适应（t1=size-1 至少 1，t2=size 垄断）
+  // kind=count  : 持有指定类型地块达到 n 个
+  // kind=levels : 名下建筑总等级达到 n
+  const SYNERGY_DEFS = [
+    { id:'synA', kind:'group', group:'A', name:'紫金商会', icon:'🏢',
+      tiers:[
+        { text:'A 组（紫）租金 +30%' },
+        { text:'A 组（紫）租金 +75%' },
+      ] },
+    { id:'synB', kind:'group', group:'B', name:'海滨客商', icon:'⛵',
+      tiers:[
+        { text:'经过起点时工资额外 +¥60' },
+        { text:'经过起点时工资额外 +¥150' },
+      ] },
+    { id:'synC', kind:'group', group:'C', name:'营造行会', icon:'🧱',
+      tiers:[
+        { text:'全部建造费 -15%' },
+        { text:'全部建造费 -35%' },
+      ] },
+    { id:'synD', kind:'group', group:'D', name:'实业联盟', icon:'🏭',
+      tiers:[
+        { text:'支付他人租金 -15%' },
+        { text:'支付他人租金 -30%' },
+      ] },
+    { id:'synE', kind:'group', group:'E', name:'市井人情', icon:'🎭',
+      tiers:[
+        { text:'事件卡损失减半' },
+        { text:'事件卡损失免除' },
+      ] },
+    { id:'tycoon',   kind:'count',  type:'prop',    n:6, name:'地产大亨', icon:'👑',
+      tiers:[{ text:'名下地产 ≥6 → 全部租金 +20%' }] },
+    { id:'landlord', kind:'levels', n:5, name:'包租公', icon:'🔑',
+      tiers:[{ text:'建筑总等级 ≥5 → 每轮开始收租 +¥50' }] },
+    { id:'traveler', kind:'count',  type:'station', n:2, name:'出行大师', icon:'🚉',
+      tiers:[{ text:'车站 ≥2 → 车站租金 +40%' }] },
+  ];
+
+  // ---- 组大小与阶级阈值（随机地图的组可能是 2~3 块） ----
+  function groupSize(group){
+    return TILES.filter(t => t.type === 'prop' && t.group === group).length;
+  }
+  function tierThresholds(def){
+    if (def.kind !== 'group') return [def.n];
+    const size = groupSize(def.group);
+    return [Math.max(1, size - 1), size];
+  }
+
+  // ---- 计数与阶级：tierOf 返回 0/1/2（0 = 未达成） ----
+  function countOf(pi, def){
+    const p = players[pi];
+    if (def.kind === 'group')
+      return p.props.filter(i => TILES[i].type === 'prop' && TILES[i].group === def.group).length;
+    if (def.kind === 'count')
+      return p.props.filter(i => TILES[i].type === def.type).length;
+    if (def.kind === 'levels')
+      return p.props.reduce((s, i) => s + (tileLevel[i] || 0), 0);
+    return 0;
+  }
+  function tierOf(pi, def){
+    if (players[pi].bankrupt) return 0;
+    if (def.kind === 'group' && groupSize(def.group) === 0) return 0;   // 本图没有该色组 → 羁绊不可达成
+    const th = tierThresholds(def);
+    const n = countOf(pi, def);
+    let tier = 0;
+    th.forEach((need, ti) => { if (n >= need) tier = ti + 1; });
+    return tier;
+  }
+  // 该图上可用的羁绊（颜色羁绊要求图上存在该色组）
+  function activeDefs(){
+    return SYNERGY_DEFS.filter(d => d.kind !== 'group' || groupSize(d.group) > 0);
+  }
+
+  // ---- 效果挂钩 ----
+  // A：组内租金加成；tycoon：全部租金 +20%
+  Game.rentFilters.push((ownerPi, i, t, rent) => {
+    let r = rent;
+    if (t.type === 'prop' && t.group === 'A'){
+      const tier = tierOf(ownerPi, SYNERGY_DEFS[0]);
+      if (tier === 1) r *= 1.3;
+      if (tier >= 2) r *= 1.75;
+    }
+    if (t.type === 'station'){
+      const tier = tierOf(ownerPi, SYNERGY_DEFS.find(d => d.id === 'traveler'));
+      if (tier) r *= 1.4;
+    }
+    if (tierOf(ownerPi, SYNERGY_DEFS.find(d => d.id === 'tycoon'))) r *= 1.2;
+    return r;
+  });
+
+  // B：过起点额外工资
+  Game.salaryFilters.push((pi, salary) => {
+    const tier = tierOf(pi, SYNERGY_DEFS[1]);
+    if (tier === 1) return salary + 60;
+    if (tier >= 2) return salary + 150;
+    return salary;
+  });
+
+  // C：建造费折扣
+  Game.buildCostFilters.push((pi, cost) => {
+    const tier = tierOf(pi, SYNERGY_DEFS[2]);
+    if (tier === 1) return cost * 0.85;
+    if (tier >= 2) return cost * 0.65;
+    return cost;
+  });
+
+  // D：支付租金减免（只减租金，税款/保释金等不受影响）
+  Game.payFilters.push((from, to, amount, reason) => {
+    if (to === null || !/租金/.test(reason || '')) return amount;
+    const tier = tierOf(from, SYNERGY_DEFS[3]);
+    if (tier === 1) return amount * 0.85;
+    if (tier >= 2) return amount * 0.7;
+    return amount;
+  });
+
+  // E：事件卡损失减免
+  Game.cardMoneyFilters.push((pi, money) => {
+    if (money >= 0) return money;
+    const tier = tierOf(pi, SYNERGY_DEFS[4]);
+    if (tier === 1) return money * 0.5;
+    if (tier >= 2) return 0;
+    return money;
+  });
+
+  // 包租公：每轮开始收租
+  Game.onRound.push(() => {
+    const def = SYNERGY_DEFS.find(d => d.id === 'landlord');
+    players.forEach((p, pi) => {
+      if (p.bankrupt || !tierOf(pi, def)) return;
+      p.money += 50;
+      floatMoney(pi, 50);
+      log(`🔑 ${p.name} 触发羁绊「包租公」，收到租金 ¥50`, 'good');
+    });
+    renderPlayers();
+  });
+
+  // ---- 玩家卡徽章：已达成的羁绊（含阶级） ----
+  Game.badges.push(pi => SYNERGY_DEFS.map(def => {
+    const tier = tierOf(pi, def);
+    if (!tier) return '';
+    const th = tierThresholds(def);
+    const color = def.kind === 'group' ? GROUP_COLORS[def.group] : CROSS_COLOR[def.id];
+    const tname = th.length > 1 ? (tier === 1 ? '一阶' : '二阶') : '';
+    return `<span class="combo-tag" style="background:${color}">${def.icon} ${def.name}${tname ? '·' + tname : ''}</span>`;
+  }).join(''));
+
+  // ---- 达成播报：首次渲染静默登记，之后升级才提示 ----
+  const seenTier = {};
+  Game.afterRender.push(() => {
+    players.forEach((p, pi) => {
+      SYNERGY_DEFS.forEach(def => {
+        const key = pi + ':' + def.id;
+        const now = tierOf(pi, def);
+        if (seenTier[key] === undefined){ seenTier[key] = now; return; }
+        if (now > seenTier[key]){
+          const th = tierThresholds(def);
+          const tname = th.length > 1 ? (now === 1 ? '一阶' : '二阶') : '';
+          log(`✨ ${p.name} 达成羁绊「${def.name}${tname ? '·' + tname : ''}」：${def.tiers[now - 1].text}`, 'good');
+        }
+        seenTier[key] = now;
+      });
+    });
+  });
+
+  // ---- 羁绊图鉴面板：顶栏按钮 + 弹窗（模块自注入，不占用核心 HTML） ----
+  function renderPanel(){
+    const body = $('synBody');
+    body.innerHTML = activeDefs().map(def => {
+      const th = tierThresholds(def);
+      const color = def.kind === 'group' ? GROUP_COLORS[def.group] : CROSS_COLOR[def.id];
+      const rows = players.map((p, pi) => {
+        if (p.bankrupt) return '';
+        const n = countOf(pi, def);
+        const tier = tierOf(pi, def);
+        const goal = th[th.length - 1];
+        const label = def.kind === 'group' ? `${def.group} 组地块` :
+                      def.kind === 'count' ? ({prop:'地产', station:'车站', utility:'电站'})[def.type] : '建筑等级';
+        const tierText = tier ? (th.length > 1 ? `（${tier === 1 ? '一阶' : '二阶'}）` : '（已达成）') : '';
+        return `<div class="syn-prog${tier ? ' on' : ''}">
+            <span class="syn-pname">${p.isAI ? '🤖 ' : '👤 '}${p.name}</span>
+            <span class="syn-track"><span class="syn-bar" style="width:${Math.min(100, n / goal * 100)}%;background:${color}"></span></span>
+            <span class="syn-num">${n}/${goal} ${tierText}</span>
+          </div>`;
+      }).join('');
+      const tiers = def.tiers.map((t, ti) =>
+        `<div class="syn-tier${players.some((p, pi) => !p.bankrupt && tierOf(pi, def) > ti) ? ' on' : ''}">
+          <b>${th.length > 1 ? ['一阶', '二阶'][ti] : '效果'}</b><span>${t.text}</span>
+          <i>需 ${label(def, th[ti])}</i>
+        </div>`).join('');
+      return `<div class="syn-card">
+          <div class="syn-head" style="border-left-color:${color}">${def.icon} <b>${def.name}</b>
+            <small>${def.kind === 'group' ? '颜色羁绊 · ' + def.group + ' 组' : '组合羁绊'}</small></div>
+          <div class="syn-tiers">${tiers}</div>
+          ${rows}
+        </div>`;
+    }).join('');
+
+    // 阈值说明：group 用块数，count 用个数，levels 用等级数
+    function label(def, need){
+      if (def.kind === 'group') return need + ' 块';
+      if (def.kind === 'count') return need + ' 个';
+      return '总等级 ' + need;
+    }
+  }
+
+  const btn = document.createElement('button');
+  btn.id = 'synBtn'; btn.className = 'btn-ghost'; btn.textContent = '🧩 羁绊';
+  btn.onclick = () => { renderPanel(); $('synModal').classList.remove('hidden'); };
+  const actions = document.querySelector('.topbar .actions');
+  if (actions) actions.insertBefore(btn, actions.querySelector('#newGameBtn'));
+
+  const modal = document.createElement('div');
+  modal.className = 'overlay hidden'; modal.id = 'synModal';
+  modal.innerHTML = `<div class="modal" style="width:min(520px,94vw)">
+      <h3>🧩 羁绊图鉴</h3>
+      <p style="margin-bottom:10px">同色地块凑够数量、或达成特殊组合即可激活羁绊，效果全自动生效。</p>
+      <div id="synBody"></div>
+      <div class="btns" style="margin-top:14px"><button class="btn-no" id="synClose">关闭</button></div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+  document.getElementById('synClose').onclick = () => modal.classList.add('hidden');
+
+  // ================================================================
+  // 地块悬停卡片（pure UI）：不用开图鉴就能看到这块地的羁绊归属与双方进度
+  // ================================================================
+  const TIP = document.createElement('div');
+  TIP.id = 'synTip'; TIP.className = 'hidden';
+  document.body.appendChild(TIP);
+
+  const TYPE_LABEL = { prop:'地产', station:'车站', utility:'电站', chance:'机会', tax:'税收',
+    casino:'赌场', police:'交警', go:'起点', jail:'监狱', parking:'奖池停车', bonus:'奖励',
+    insurance:'保险代理', auction:'拍卖行' };
+  const TYPE_DESC = {
+    prop:'可购买并建房升级，同组凑齐租金翻倍',
+    station:'租金随持有车站数递增（¥100 / 200 / 400）',
+    utility:'租金 = 骰点 ×8，双座齐收 ×20',
+    chance:'抽一张事件卡，19 种效果随机',
+    tax:'按总资产 10% 缴税（上限 ¥100），税款进奖池',
+    casino:'押注一把：赢 ¥200 / 输 ¥150（罚金进奖池）',
+    police:'被查违规直接押送监狱，下回合跳过',
+    go:'经过领取工资，可被羁绊加成',
+    jail:'服刑区，可保释或用出狱许可证',
+    parking:'落格卷走奖池全部奖金',
+    bonus:'直接领取 ¥200 奖励',
+    insurance:'花 ¥80 投保，免一次税 / 维修 / 赌场罚金',
+    auction:'随机抽一块无主地立刻公开拍卖',
+  };
+  const defOfGroup  = g => SYNERGY_DEFS.find(d => d.kind === 'group' && d.group === g);
+  const defOfId     = id => SYNERGY_DEFS.find(d => d.id === id);
+  function unitOf(def){ return def.kind === 'levels' ? '级' : (def.kind === 'count' ? '个' : '块'); }
+
+  function playerRows(def){
+    const th = tierThresholds(def);
+    const goal = th[th.length - 1];
+    const color = def.kind === 'group' ? GROUP_COLORS[def.group] : CROSS_COLOR[def.id];
+    return players.map((p, pi) => {
+      if (p.bankrupt) return '';
+      const n = Math.min(countOf(pi, def), goal), tier = tierOf(pi, def);
+      const tn = tier ? (th.length > 1 ? (tier === 1 ? '一阶' : '二阶') : '已达成') : '';
+      return `<div class="tip-prog${tier ? ' on' : ''}">
+          <span class="tip-pn">${p.isAI ? '🤖' : '👤'}${p.name}</span>
+          <span class="tip-track"><span style="width:${n / goal * 100}%;background:${color}"></span></span>
+          <span class="tip-pc">${n}/${goal}${tn ? ' ' + tn : ''}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function synergyBlock(def, note){
+    const th = tierThresholds(def);
+    const color = def.kind === 'group' ? GROUP_COLORS[def.group] : CROSS_COLOR[def.id];
+    const tiers = def.tiers.map((t, ti) =>
+      `<div class="tip-tier"><b>${th.length > 1 ? (ti === 0 ? '一阶' : '二阶') : '效果'}</b>${t.text}` +
+      `<i>需 ${th[ti]} ${unitOf(def)}</i></div>`).join('');
+    return `<div class="tip-sec">
+        <div class="tip-syn"><span class="tip-chip" style="background:${color}">${def.icon} ${def.name}</span>
+          <small>${note || (def.kind === 'group' ? '颜色羁绊' : '组合羁绊')}</small></div>
+        ${tiers}${playerRows(def)}
+      </div>`;
+  }
+
+  function renderTip(i){
+    const t = TILES[i];
+    if (!t) return '';
+    const owner = tileOwner[i], lv = tileLevel[i] || 0;
+    const color = (typeof tileColor === 'function') ? tileColor(t) : (GROUP_COLORS[t.group] || GROUP_COLORS[t.type] || '#8B8779');
+    const ownerTxt = owner === undefined ? '<span class="tip-nil">无主</span>'
+      : `<b style="color:${players[owner].color}">${players[owner].name}</b>`;
+    const room = t.type === 'prop' ? (lv ? ` · ${lv} 级房` : ' · 空地') : '';
+
+    let html = `<div class="tip-head"><b>${t.name}</b>${t.price ? `<span class="tip-price">¥${t.price}</span>` : ''}</div>
+      <div class="tip-meta"><span class="tip-g" style="background:${color}">${t.group || '·'}</span>${TYPE_LABEL[t.type] || '地块'}${room} · ${ownerTxt}</div>`;
+
+    // 租金（含羁绊加成，直接给玩家一个“现在踩上去要付多少”的答案）
+    if (owner !== undefined && ['prop', 'station', 'utility'].includes(t.type)){
+      const r = rentOf(i);
+      const mono = t.type === 'prop' && typeof ownsWholeGroup === 'function' && ownsWholeGroup(owner, t.group);
+      html += `<div class="tip-rent">现租金 <b>¥${r}</b>${tileMortgaged[i] ? '（已抵押，暂不收租）' : ''}${mono ? ' · 已垄断整组 ×2' : ''}</div>`;
+    }
+
+    // 羁绊归属：地产看同色组，车站看出行大师
+    if (t.type === 'prop' && t.group && defOfGroup(t.group)){
+      html += synergyBlock(defOfGroup(t.group));
+    } else if (t.type === 'station'){
+      html += synergyBlock(defOfId('traveler'));
+    } else if (TYPE_DESC[t.type]){
+      html += `<div class="tip-note">${TYPE_DESC[t.type]}</div>`;
+    }
+
+    // 地产额外提示：地产大亨进度（只对持有者有意义，给持有者一行）
+    if (t.type === 'prop' && owner !== undefined){
+      const ty = defOfId('tycoon');
+      const n = countOf(owner, ty);
+      html += `<div class="tip-note">👑 地产大亨：${players[owner].name} ${Math.min(n, ty.n)}/${ty.n} 块地产${n >= ty.n ? '（已达成，租金 +20%）' : ''}</div>`;
+    }
+    return html;
+  }
+
+  function placeTip(ev){
+    const w = TIP.offsetWidth, h = TIP.offsetHeight;
+    let x = ev.clientX + 18, y = ev.clientY + 16;
+    if (x + w > window.innerWidth - 8) x = Math.max(8, ev.clientX - w - 16);
+    if (y + h > window.innerHeight - 8) y = Math.max(8, window.innerHeight - h - 8);
+    TIP.style.left = x + 'px'; TIP.style.top = y + 'px';
+  }
+
+  // 同组地块高亮：一眼看清“还差哪块”（车站则高亮全部车站）
+  function hiGroup(i){
+    document.querySelectorAll('.tile.syn-peer').forEach(el => el.classList.remove('syn-peer'));
+    const t = TILES[i];
+    if (!t) return;
+    const key = t.group || (t.type === 'station' ? 'station' : null);
+    if (!key) return;
+    TILES.forEach((tt, j) => {
+      if (j === i) return;
+      if ((tt.group || (tt.type === 'station' ? 'station' : null)) === key){
+        const el = $('tile' + j);
+        if (el) el.classList.add('syn-peer');
+      }
+    });
+  }
+  function hideTip(){
+    hoverIdx = -1;
+    TIP.classList.add('hidden');
+    document.querySelectorAll('.tile.syn-peer').forEach(el => el.classList.remove('syn-peer'));
+  }
+
+  let hoverIdx = -1;
+  let muteIdx = -1;   // 刚点过的那块地：指针没离开它之前不再弹卡片
+  const boardEl = $('board');
+
+  // 指针当前真正命中的地块索引；没落在任何地格上返回 -1
+  function tileUnder(ev){
+    const el = ev.target && ev.target.closest ? ev.target.closest('.tile') : null;
+    if (!el || !el.id || !/^tile\d+$/.test(el.id) || !el.isConnected) return -1;
+    return +el.id.slice(4);
+  }
+
+  // 每次指针移动都重新确认「到底在哪块地上」：一旦离开地格（移到棋盘中央、
+  // 骰子、掷骰子按钮、空白处……）立刻收起卡片。
+  // 只靠 #board 的 mouseleave 不行——在棋盘内部移动时它根本不会触发。
+  function syncTip(ev){
+    const i = tileUnder(ev);
+    if (i === hoverIdx){
+      if (i >= 0 && !TIP.classList.contains('hidden')) placeTip(ev);
+      return;
+    }
+    if (i < 0){
+      if (hoverIdx >= 0) hideTip();
+      muteIdx = -1;
+      return;
+    }
+    if (i === muteIdx){          // 点在同一块地上，等指针移开再说
+      if (hoverIdx >= 0) hideTip();
+      return;
+    }
+    muteIdx = -1;
+    if (document.querySelector('.overlay:not(.hidden)')){
+      // 弹窗期间不打扰（不记 hoverIdx，弹窗关掉后指针再动还能正常弹）
+      TIP.classList.add('hidden');
+      hoverIdx = -1;
+      return;
+    }
+    hoverIdx = i;
+    TIP.innerHTML = renderTip(i);
+    TIP.classList.remove('hidden');
+    placeTip(ev);
+    hiGroup(i);
+  }
+
+  if (boardEl){
+    boardEl.addEventListener('mouseover', syncTip);
+    boardEl.addEventListener('mousemove', syncTip);
+    boardEl.addEventListener('mouseleave', hideTip);
+  }
+  // 点下去先收起（同时记住这块地，避免手指还在原地就又把卡片弹回来）
+  document.addEventListener('mousedown', () => { muteIdx = hoverIdx; hideTip(); }, true);
+
+  // 测试钩子
+  Game.synApi = { defs: SYNERGY_DEFS, tierOf, countOf, renderTip, hideTip };
+});
+
+</script>
+<script>
+// ══════ modules/m-items.js ══════
+// ================================================================
+// 模块：道具商店（m-items）
+// 地图上把一张「机会」改造成「道具商店 🛍️」（迷你图只有一张机会格则不改造，
+// 改用顶栏「🛍️ 商店」按钮，随时可进）。道具分两类：
+//   被动：免租卡（付租金全额免除）、加倍卡（向对手收租翻倍）—— 命中即自动消耗
+//   主动：路障、遥控骰子、拆迁卡 —— 玩家点玩家卡上的道具图标使用
+// 所有道具每种最多持有 2 张，库存随存档保存（mods.items）。
+// 核心钩子：payWaivers / payFilters / rollFilters / stepBlockers / turnStart。
+// ================================================================
+Game.use('items', () => {
+  const ITEMS = {
+    rent:   { icon:'🎫', name:'免租卡',   price:140, active:false,
+              desc:'被动：下次支付租金时自动全额免除' },
+    double: { icon:'💹', name:'加倍卡',   price:160, active:false,
+              desc:'被动：下次向对手收租时租金翻倍' },
+    block:  { icon:'🚧', name:'路障',     price:100, active:true,
+              desc:'主动：放在身前 1~9 格，之后经过的对手被迫停下（不挡自己）' },
+    dice:   { icon:'🎲', name:'遥控骰子', price:180, active:true,
+              desc:'主动：指定下一回合的落点（前方 2~12 格），骰子自动凑出该点数' },
+    demo:   { icon:'🏗️', name:'拆迁卡',   price:220, active:true,
+              desc:'主动：拆掉对手一块地上的一级建筑' },
+  };
+  const ORDER = ['rent', 'double', 'block', 'dice', 'demo'];
+  const MAX_PER = 2;
+
+  let inv = [];        // pi -> { rent, double, block, dice, demo }
+  let blocks = [];     // [{ pos, by }] 场上的路障
+  let force = {};      // pi -> 下一回合锁定的总点数
+
+  const invOf = pi => {
+    if (!inv[pi]) inv[pi] = { rent:0, double:0, block:0, dice:0, demo:0 };
+    return inv[pi];
+  };
+  const addItem = (pi, k, n = 1) => {
+    const v = invOf(pi);
+    v[k] = Math.min(MAX_PER, (v[k] || 0) + n);
+  };
+  const spendItem = (pi, k) => {
+    const v = invOf(pi);
+    if (!v[k]) return false;
+    v[k]--;
+    return true;
+  };
+  const totalItems = pi => ORDER.reduce((s, k) => s + (invOf(pi)[k] || 0), 0);
+
+  // ---------------- 地块：把一张机会改成商店 ----------------
+  Game.beforeBoard.push(() => {
+    const chances = TILES.map((t, i) => (t.type === 'chance' ? i : -1)).filter(i => i >= 0);
+    if (chances.length >= 2){
+      const pick = chances[chances.length - 1];
+      TILES[pick] = { type:'shop', name:'道具商店', emoji:'🛍️' };
+    }
+  });
+
+  Game.tileHandlers.shop = async (pi) => {
+    const p = players[pi];
+    log(`🛍️ ${p.name} 走进道具商店`, 'card');
+    if (p.isAI){ await sleep(450); aiShop(pi); return; }
+    await openShop(pi);
+  };
+
+  // ---------------- 被动道具：走付款钩子 ----------------
+  // 免租卡：支付租金时全额免除（只在真正付款时触发，看租金预览不会白白消耗）
+  Game.payWaivers.push((from, to, amount, reason) => {
+    if (to === null || amount <= 0 || !/租金/.test(reason)) return amount;
+    const p = players[from];
+    if (!spendItem(from, 'rent')) return amount;
+    log(`🎫 ${p.name} 使用免租卡，本次「${reason}」¥${amount} 全额免除`, 'good');
+    renderPlayers();
+    return null;
+  });
+
+  // 加倍卡：向对手收租时翻倍（付款方视角过滤，实收翻倍）
+  Game.payFilters.push((from, to, amount, reason) => {
+    if (to === null || amount <= 0 || !/租金/.test(reason)) return amount;
+    const owner = players[to];
+    if (!owner || owner.bankrupt || !spendItem(to, 'double')) return amount;
+    log(`💹 ${owner.name} 使用加倍卡，「${reason}」翻倍为 ¥${amount * 2}`, 'good');
+    renderPlayers();
+    return amount * 2;
+  });
+
+  // ---------------- 遥控骰子：改写掷骰结果 ----------------
+  Game.rollFilters.push((pi, faces) => {
+    const total = force[pi];
+    if (!total) return faces;
+    delete force[pi];
+    // 拆成两颗 1~6 的点数，优先不掷出双数（避免遥控顺便白送一次续行）
+    const pairs = [];
+    for (let a = 1; a <= 6; a++){
+      const b = total - a;
+      if (b >= 1 && b <= 6) pairs.push([a, b]);
+    }
+    if (!pairs.length) return faces;
+    const uneven = pairs.filter(([a, b]) => a !== b);
+    const pick = (uneven.length ? uneven : pairs)[Math.floor(Math.random() * (uneven.length || pairs.length))];
+    log(`🎲 ${players[pi].name} 使用遥控骰子，锁定 ${total} 点`, 'card');
+    return pick;
+  });
+
+  // ---------------- 路障：逐格拦截 ----------------
+  Game.stepBlockers.push((pi, nextPos) => {
+    const k = blocks.findIndex(b => b.pos === nextPos && b.by !== pi);
+    if (k < 0) return false;
+    const b = blocks.splice(k, 1)[0];
+    drawBlocks();
+    log(`🚧 ${players[pi].name} 撞上 ${players[b.by].name} 放的路障，被迫停在「${TILES[nextPos].name}」`, 'bad');
+    return true;
+  });
+
+  // ---------------- 视觉：路障标记 ----------------
+  function drawBlocks(){
+    document.querySelectorAll('.block-mark').forEach(el => el.remove());
+    blocks.forEach(b => {
+      const el = $('tile' + b.pos);
+      if (!el) return;
+      const d = document.createElement('div');
+      d.className = 'block-mark';
+      d.textContent = '🚧';
+      el.appendChild(d);
+    });
+  }
+
+  // ---------------- 道具徽章（玩家卡） ----------------
+  Game.badges.push(pi => {
+    const v = invOf(pi);
+    const chips = ORDER.filter(k => v[k] > 0).map(k =>
+      `<span class="item-chip" data-pi="${pi}" title="${ITEMS[k].name}：${ITEMS[k].desc}">${ITEMS[k].icon}${v[k] > 1 ? '×' + v[k] : ''}</span>`
+    ).join('');
+    return chips ? `<span class="item-chips">${chips}</span>` : '';
+  });
+
+  // 徽章点击 = 打开使用面板（只对「当前行动的真人玩家」生效）
+  Game.afterRender.push(() => {
+    document.querySelectorAll('.item-chip').forEach(el => {
+      el.onclick = () => {
+        const pi = +el.dataset.pi;
+        if (gameOver || busy || pi !== turn || players[pi].isAI) return;
+        openUse(pi);
+      };
+    });
+  });
+
+  // ---------------- 商店 UI ----------------
+  function openShop(pi){
+    return new Promise(resolve => {
+      const p = players[pi];
+      const render = () => {
+        $('shopDesc').innerHTML =
+          `现金 <b>¥${p.money}</b>　·　每种最多 ${MAX_PER} 张　·　被动道具命中即自动使用`;
+        $('shopList').innerHTML = ORDER.map(k => {
+          const it = ITEMS[k], have = invOf(pi)[k] || 0;
+          const can = p.money >= it.price && have < MAX_PER;
+          return `<div class="shop-item">
+            <div class="si-ico">${it.icon}</div>
+            <div class="si-main">
+              <div class="si-name">${it.name}${have ? `<span class="si-have">持有 ${have}</span>` : ''}</div>
+              <div class="si-desc">${it.desc}</div>
+            </div>
+            <button class="si-buy" data-k="${k}" ${can ? '' : 'disabled'}>¥${it.price}</button>
+          </div>`;
+        }).join('');
+        $('shopList').querySelectorAll('.si-buy').forEach(btn => {
+          btn.onclick = () => {
+            const k = btn.dataset.k, it = ITEMS[k];
+            if (players[pi].money < it.price || (invOf(pi)[k] || 0) >= MAX_PER) return;
+            players[pi].money -= it.price;
+            addItem(pi, k);
+            log(`🛍️ ${p.name} 购入「${it.icon} ${it.name}」（-¥${it.price}）`, 'card');
+            renderPlayers();
+            render();
+          };
+        });
+      };
+      render();
+      $('shopModal').classList.remove('hidden');
+      $('shopClose').onclick = () => { $('shopModal').classList.add('hidden'); resolve(); };
+    });
+  }
+
+  // ---------------- 使用面板 ----------------
+  function openUse(pi){
+    const p = players[pi];
+    const v = invOf(pi);
+    if (!totalItems(pi)){
+      openShop(pi);   // 身上没货就直接进店，少点一次
+      return;
+    }
+    $('useTitle').textContent = '🎒 使用道具';
+    $('useDesc').innerHTML = `${p.name} 的道具（被动道具命中时自动触发，无需手动使用）`;
+    $('useList').innerHTML = ORDER.filter(k => v[k] > 0).map(k => {
+      const it = ITEMS[k];
+      return `<div class="shop-item">
+        <div class="si-ico">${it.icon}</div>
+        <div class="si-main">
+          <div class="si-name">${it.name}<span class="si-have">持有 ${v[k]}</span></div>
+          <div class="si-desc">${it.desc}</div>
+        </div>
+        <button class="si-buy" data-k="${k}">${it.active ? '使用' : '被动'}</button>
+      </div>`;
+    }).join('');
+    $('useList').querySelectorAll('.si-buy').forEach(btn => {
+      const k = btn.dataset.k;
+      if (!ITEMS[k].active){ btn.disabled = true; return; }
+      btn.onclick = () => showTargets(pi, k);
+    });
+    $('useModal').classList.remove('hidden');
+    $('useClose').onclick = () => $('useModal').classList.add('hidden');
+  }
+
+  // 目标选择（路障 / 遥控骰子 / 拆迁卡）
+  function showTargets(pi, kind){
+    const p = players[pi], N = TILES.length;
+    let rows = [];
+    if (kind === 'block' || kind === 'dice'){
+      const [lo, hi] = kind === 'block' ? [1, 9] : [2, 12];
+      for (let d = lo; d <= hi; d++){
+        const pos = (p.pos + d) % N;
+        if (pos === 0) continue;                    // 不往起点放（否则会吞掉过路工资）
+        if (blocks.some(b => b.pos === pos)) continue;
+        const t = TILES[pos], own = tileOwner[pos];
+        const tag = own === undefined ? '无主'
+          : own === pi ? '自己的地'
+          : `${players[own].name} 的地 · 租 ¥${rentOf(pos)}`;
+        rows.push(`<button class="tgt" data-pos="${pos}" data-d="${d}">
+          <span class="tgt-d">+${d}</span>
+          <span class="tgt-n">${t.name}</span>
+          <span class="tgt-t">${tag}</span></button>`);
+      }
+    } else if (kind === 'demo'){
+      TILES.forEach((t, i) => {
+        const own = tileOwner[i];
+        if (own === undefined || own === pi || (tileLevel[i] || 0) <= 0) return;
+        rows.push(`<button class="tgt" data-pos="${i}" data-d="0">
+          <span class="tgt-d">拆</span>
+          <span class="tgt-n">${t.name}</span>
+          <span class="tgt-t">${players[own].name} · ${LEVEL_NAME[tileLevel[i]]} · 租 ¥${rentOf(i)}</span></button>`);
+      });
+    }
+    $('useTitle').textContent = kind === 'block' ? '🚧 把路障放在哪一格？'
+      : kind === 'dice' ? '🎲 下一回合想去哪？'
+      : '🏗️ 拆谁的房？';
+    $('useDesc').innerHTML = `<span style="font-size:12px;color:#9C9789">${ITEMS[kind].desc}</span>`;
+    $('useList').innerHTML = rows.length ? rows.join('')
+      : `<div class="si-desc" style="padding:8px 2px">当前没有可选目标。</div>`;
+    $('useList').querySelectorAll('.tgt').forEach(b => {
+      b.onclick = () => {
+        const pos = +b.dataset.pos, d = +b.dataset.d;
+        if (!spendItem(pi, kind)) return;
+        if (kind === 'block'){
+          blocks.push({ pos, by: pi });
+          drawBlocks();
+          log(`🚧 ${p.name} 在「${TILES[pos].name}」放下路障`, 'card');
+        } else if (kind === 'dice'){
+          force[pi] = d;
+          log(`🎲 ${p.name} 用遥控骰子锁定「${TILES[pos].name}」（${d} 点）`, 'card');
+        } else {
+          tileLevel[pos] = (tileLevel[pos] || 0) - 1;
+          refreshTile(pos);
+          log(`🏗️ ${p.name} 用拆迁卡拆掉「${TILES[pos].name}」的一级建筑`, 'bad');
+        }
+        $('useModal').classList.add('hidden');
+        renderPlayers();
+        saveGame();
+      };
+    });
+    $('useClose').onclick = () => $('useModal').classList.add('hidden');
+  }
+
+  // ---------------- AI ----------------
+  function aiShop(pi){
+    const p = players[pi];
+    const affordable = ORDER.filter(k => ITEMS[k].price <= p.money - 200 && (invOf(pi)[k] || 0) < MAX_PER);
+    if (!affordable.length){ log(`🛍️ ${p.name} 逛了一圈，什么都没买`); return; }
+    const k = affordable[Math.floor(Math.random() * affordable.length)];
+    p.money -= ITEMS[k].price;
+    addItem(pi, k);
+    log(`🛍️ ${p.name} 购入「${ITEMS[k].icon} ${ITEMS[k].name}」（-¥${ITEMS[k].price}）`, 'card');
+    renderPlayers();
+  }
+
+  Game.turnStart.push(pi => {
+    const p = players[pi];
+    if (!p.isAI || p.bankrupt || gameOver) return;
+    const v = invOf(pi);
+    // 拆迁卡：优先拆全场租金最高的对手地产
+    if (v.demo > 0){
+      let best = -1, bestRent = 0;
+      TILES.forEach((t, i) => {
+        const own = tileOwner[i];
+        if (own === undefined || own === pi || (tileLevel[i] || 0) <= 0) return;
+        const r = rentOf(i);
+        if (r > bestRent){ bestRent = r; best = i; }
+      });
+      if (best >= 0){
+        spendItem(pi, 'demo');
+        tileLevel[best] = (tileLevel[best] || 0) - 1;
+        refreshTile(best);
+        log(`🏗️ ${p.name} 用拆迁卡拆掉「${TILES[best].name}」的一级建筑`, 'bad');
+      }
+    }
+    // 遥控骰子：在前方 2~12 格里挑一块「无主可买 / 自己的地 / 便宜租」的
+    if (v.dice > 0){
+      let best = 0, bestScore = -1e9;
+      for (let d = 2; d <= 12; d++){
+        const pos = (p.pos + d) % TILES.length;
+        if (pos === 0) continue;
+        const t = TILES[pos], own = tileOwner[pos];
+        let score = 0;
+        if (own === undefined && (t.type === 'prop' || t.type === 'station' || t.type === 'utility')) score = 200 - d;
+        else if (own === pi) score = 60 - d;
+        else if (own !== undefined) score = -(rentOf(pos) / 10) - d;
+        else if (t.type === 'shop') score = 40 - d;
+        if (score > bestScore){ bestScore = score; best = d; }
+      }
+      if (best > 0){
+        spendItem(pi, 'dice');
+        force[pi] = best;
+        log(`🎲 ${p.name} 用遥控骰子锁定 ${best} 点`, 'card');
+      }
+    }
+    // 路障：领先时给身后放一块，拦追兵
+    if (v.block > 0 && Math.random() < 0.6){
+      const d = 3 + Math.floor(Math.random() * 6);
+      const pos = (p.pos + d) % TILES.length;
+      if (pos !== 0 && !blocks.some(b => b.pos === pos)){
+        spendItem(pi, 'block');
+        blocks.push({ pos, by: pi });
+        drawBlocks();
+        log(`🚧 ${p.name} 在「${TILES[pos].name}」放下路障`, 'card');
+      }
+    }
+  });
+
+  // ---------------- 顶栏商店按钮 ----------------
+  function ensureBtn(){
+    if (document.getElementById('shopBtn')) return;
+    const host = document.querySelector('.topbar .actions');
+    if (!host) return;
+    const b = document.createElement('button');
+    b.className = 'btn-ghost';
+    b.id = 'shopBtn';
+    b.textContent = '🛍️ 商店';
+    b.title = '在自己的回合随时进店；地图上的「道具商店」格也可以逛';
+    b.onclick = () => {
+      if (gameOver) return;
+      const p = players[turn];
+      if (p.isAI || busy){ log('🛍️ 只能在自己回合进店'); return; }
+      const open = document.getElementById('shopModal');
+      if (open && !open.classList.contains('hidden')) return;
+      openShop(turn);
+    };
+    host.insertBefore(b, host.firstChild);
+  }
+
+  // ---------------- 存档 ----------------
+  Game.saveExtras.push(() => ({
+    items: { inv: inv.map(v => ({ ...(v || {}) })), blocks: blocks.map(b => ({ ...b })), force: { ...force } },
+  }));
+  Game.loadExtras.push(sv => {
+    const m = sv.mods && sv.mods.items;
+    if (!m) return;
+    inv = players.map((_, pi) => Object.assign({ rent:0, double:0, block:0, dice:0, demo:0 }, (m.inv && m.inv[pi]) || {}));
+    blocks = (m.blocks || []).filter(b => b && Number.isFinite(b.pos) && b.pos >= 0 && b.pos < TILES.length);
+    force = m.force || {};
+    setTimeout(drawBlocks, 60);   // 棋盘渲染完再画路障
+  });
+
+  Game.onStart.push(() => {
+    inv = players.map(() => ({ rent:0, double:0, block:0, dice:0, demo:0 }));
+    blocks = [];
+    force = {};
+    ensureBtn();
+    setTimeout(drawBlocks, 60);
+    log('🛍️ 道具商店已开门：地图「道具商店」格或顶栏「🛍️ 商店」可购买（免租卡 / 加倍卡 / 路障 / 遥控骰子 / 拆迁卡）');
+  });
+
+  Game.itemsApi = { ITEMS, ORDER, invOf, totalItems, openShop, openUse, getBlocks: () => blocks.slice() };
+});
+
+</script>
+<script>
+// ══════ modules/m-stocks.js ══════
+// ================================================================
+// 模块：城市股票（m-stocks）
+// 4 家虚构公司，股价每回合随机漫步（±8%，偶发新闻 ±20%），
+// 顶栏「📈 股市」随时可买卖（限自己回合），持仓计入净资产
+// ——给落后者留翻盘窗口，领先者也得留防守仓位。
+// 持仓随存档保存（mods.stocks）；破产即清仓。
+// 核心钩子：netWorthExtras / onRound / turnStart / onStart。
+// ================================================================
+Game.use('stocks', () => {
+  const COMPANIES = [
+    { name:'星辰科技', icon:'📡' },
+    { name:'蓝海航运', icon:'🚢' },
+    { name:'云帆地产', icon:'🏗️' },
+    { name:'铁港物流', icon:'🚂' },
+  ];
+  const BASE = 100, MIN_PRICE = 20, WAVE = 0.08, NEWS_CHANCE = 0.1, NEWS_AMP = 0.2;
+
+  let prices = COMPANIES.map(() => BASE);
+  let prev   = COMPANIES.map(() => BASE);
+  let holdings = [];   // pi -> [n, n, n, n]
+
+  const rowsOf = pi => {
+    if (!holdings[pi]) holdings[pi] = COMPANIES.map(() => 0);
+    return holdings[pi];
+  };
+  const valueOf = pi => rowsOf(pi).reduce((s, n, k) => s + n * prices[k], 0);
+  const idxOf = p => players.indexOf(p);
+
+  // ---------------- 行情推进（每回合） ----------------
+  Game.onRound.push(() => {
+    prev = prices.slice();
+    prices = prices.map((v, k) => {
+      let nv = Math.round(v * (1 + (Math.random() * 2 - 1) * WAVE));
+      if (Math.random() < NEWS_CHANCE){                 // 偶发新闻：大涨大跌
+        const up = Math.random() < 0.5;
+        nv = Math.round(v * (1 + (up ? 1 : -1) * NEWS_AMP));
+        log(`📰 新闻冲击：「${COMPANIES[k].name}」${up ? '利好' : '利空'}，股价${up ? '大涨' : '暴跌'}至 ¥${Math.max(MIN_PRICE, nv)}`, 'card');
+      }
+      return Math.max(MIN_PRICE, nv);
+    });
+    // 破产即清仓，避免破产者还挂着股票资产
+    players.forEach((p, pi) => { if (p.bankrupt) rowsOf(pi).fill(0); });
+    renderPlayers();
+  });
+
+  // ---------------- 净资产 ----------------
+  Game.netWorthExtras.push(p => p.bankrupt ? 0 : valueOf(idxOf(p)));
+
+  // ---------------- 交易 ----------------
+  function canTrade(pi){
+    return !gameOver && !busy && turn === pi && !players[pi].isAI && !players[pi].bankrupt;
+  }
+
+  function openStocks(pi){
+    const render = () => {
+      const p = players[pi];
+      $('stockDesc').innerHTML =
+        `现金 <b>¥${p.money}</b>　·　持仓市值 <b>¥${valueOf(pi)}</b>　·　每回合 ±8% 随机波动`;
+      $('stockList').innerHTML = COMPANIES.map((c, k) => {
+        const chg = prices[k] - prev[k];
+        const pct = prev[k] ? (chg / prev[k] * 100) : 0;
+        const arrow = chg > 0 ? '▲' : chg < 0 ? '▼' : '—';
+        const col = chg > 0 ? '#A05752' : chg < 0 ? '#4F7A5E' : '#9C9789';   // 涨红跌绿
+        const have = rowsOf(pi)[k];
+        return `<div class="shop-item">
+          <div class="si-ico">${c.icon}</div>
+          <div class="si-main">
+            <div class="si-name">${c.name}${have ? `<span class="si-have">持有 ${have} 股</span>` : ''}</div>
+            <div class="si-desc">¥${prices[k]}　<span style="color:${col};font-weight:700">${arrow} ${chg > 0 ? '+' : ''}${chg}（${pct.toFixed(1)}%）</span></div>
+          </div>
+          <div class="si-btns">
+            <button class="si-buy" data-k="${k}" data-act="buy" ${p.money >= prices[k] ? '' : 'disabled'}>买</button>
+            <button class="si-buy" data-k="${k}" data-act="sell" ${have > 0 ? '' : 'disabled'}>卖</button>
+          </div>
+        </div>`;
+      }).join('');
+      $('stockList').querySelectorAll('.si-buy').forEach(btn => {
+        btn.onclick = () => {
+          const k = +btn.dataset.k, act = btn.dataset.act, p = players[pi];
+          if (act === 'buy'){
+            if (p.money < prices[k]) return;
+            p.money -= prices[k];
+            rowsOf(pi)[k]++;
+            log(`📈 ${p.name} 买入「${COMPANIES[k].name}」1 股 @¥${prices[k]}`, 'card');
+          } else {
+            if (rowsOf(pi)[k] <= 0) return;
+            rowsOf(pi)[k]--;
+            p.money += prices[k];
+            log(`📉 ${p.name} 卖出「${COMPANIES[k].name}」1 股 @¥${prices[k]}`, 'card');
+          }
+          renderPlayers();
+          saveGame();
+          render();
+        };
+      });
+    };
+    render();
+    $('stockModal').classList.remove('hidden');
+    $('stockClose').onclick = () => $('stockModal').classList.add('hidden');
+  }
+
+  function ensureBtn(){
+    if (document.getElementById('stockBtn')) return;
+    const host = document.querySelector('.topbar .actions');
+    if (!host) return;
+    const b = document.createElement('button');
+    b.className = 'btn-ghost';
+    b.id = 'stockBtn';
+    b.textContent = '📈 股市';
+    b.title = '买卖 4 家公司股票，持仓计入净资产；限自己回合交易';
+    b.onclick = () => {
+      if (gameOver) return;
+      const open = document.getElementById('stockModal');
+      if (open && !open.classList.contains('hidden')) return;
+      if (!canTrade(turn)){ log('📈 只能在自己回合交易股票'); return; }
+      openStocks(turn);
+    };
+    host.insertBefore(b, host.firstChild);
+  }
+
+  // ---------------- AI ----------------
+  Game.turnStart.push(pi => {
+    const p = players[pi];
+    if (!p.isAI || p.bankrupt || gameOver) return;
+    const rows = rowsOf(pi);
+    // 止盈：股价 ≥ ¥150 分批卖
+    rows.forEach((n, k) => {
+      while (n > 0 && prices[k] >= 150){
+        rows[k]--; n--;
+        p.money += prices[k];
+        log(`📉 ${p.name} 止盈卖出「${COMPANIES[k].name}」@¥${prices[k]}`, 'card');
+      }
+    });
+    // 闲钱入股：现金 > ¥800 时拿出一部分买 1~3 股
+    if (p.money > 800){
+      const k = Math.floor(Math.random() * COMPANIES.length);
+      const n = Math.min(3, Math.floor((p.money - 500) / prices[k]));
+      if (n > 0){
+        rows[k] += n;
+        p.money -= n * prices[k];
+        log(`📈 ${p.name} 买入「${COMPANIES[k].name}」×${n} @¥${prices[k]}`, 'card');
+      }
+    }
+  });
+
+  // ---------------- 存档 ----------------
+  Game.saveExtras.push(() => ({ stocks: { prices: prices.slice(), prev: prev.slice(), holdings: holdings.map(r => (r || []).slice()) } }));
+  Game.loadExtras.push(sv => {
+    const m = sv.mods && sv.mods.stocks;
+    if (!m || !Array.isArray(m.prices) || m.prices.length !== COMPANIES.length) return;
+    prices = m.prices.map(v => Math.max(MIN_PRICE, +v || BASE));
+    prev = (m.prev || prices).map(v => Math.max(MIN_PRICE, +v || BASE));
+    holdings = players.map((_, pi) =>
+      COMPANIES.map((_, k) => Math.max(0, Math.floor((m.holdings && m.holdings[pi] && m.holdings[pi][k]) || 0))));
+  });
+
+  Game.onStart.push(() => {
+    prices = COMPANIES.map(() => BASE);
+    prev = COMPANIES.map(() => BASE);
+    holdings = players.map(() => COMPANIES.map(() => 0));
+    ensureBtn();
+    log('📈 城市股市开市：星辰科技 / 蓝海航运 / 云帆地产 / 铁港物流，发行价 ¥100，持仓计入净资产');
+  });
+
+  Game.stocksApi = { COMPANIES, prices: () => prices.slice(), rowsOf, valueOf, openStocks };
+});
+
+</script>
+<script>
+// ══════ modules/m-quests.js ══════
+// ================================================================
+// 模块：悬赏任务卡（m-quests）
+// 每位玩家同一时间至多一张悬赏令，完成领赏 / 超期作废，隔 3 回合再发新的。
+//   🎯 抵达目标 —— 「X 回合内抵达『地块名』」（落格即成，onLand 监听）
+//   💰 收租达标 —— 「X 回合内累计向对手收租 ¥Y」（onPay 监听真实付款）
+// 奖金按剩余时间越紧越高；进度显示在玩家卡 📋 徽章（悬停看全文）。
+// 随存档保存（mods.quests）。
+// ================================================================
+Game.use('quests', () => {
+  const SPAN_ROUNDS = 5;      // 任务期限（回合数）
+  const REISSUE_AFTER = 3;    // 作废/完成后隔几回合发新任务
+  const LAND_REWARD = 320;
+  const RENT_REWARD = 300;
+
+  let quests = [];            // pi -> null | { type, target, goal, progress, deadline, reward }
+  let nextAt = [];            // pi -> 最早可再领任务的回合
+
+  // ---------------- 生成任务 ----------------
+  function makeQuest(pi, round){
+    const p = players[pi];
+    if (Math.random() < 0.55){
+      // 抵达目标：挑一块 3~12 步开外的具名地块（车站/地产都行）
+      const named = TILES.map((t, i) => ({ t, i }))
+        .filter(o => o.t.name && o.t.type !== 'go' && o.i !== 0);
+      const pick = named[Math.floor(Math.random() * named.length)];
+      return { type:'land', target: pick.i, goal: 1, progress: 0,
+               deadline: round + SPAN_ROUNDS, reward: LAND_REWARD };
+    }
+    // 收租达标：目标金额约等于两三笔普通租金
+    const goal = 200 + Math.floor(Math.random() * 3) * 100;
+    return { type:'rent', target: goal, goal, progress: 0,
+             deadline: round + SPAN_ROUNDS, reward: RENT_REWARD };
+  }
+
+  function questText(q){
+    const left = Math.max(0, q.deadline - round);
+    return q.type === 'land'
+      ? `在 ${left} 回合内抵达「${TILES[q.target].name}」`
+      : `在 ${left} 回合内累计向对手收租 ¥${q.goal - q.progress}`;
+  }
+
+  function assign(pi){
+    const q = makeQuest(pi, round);
+    quests[pi] = q;
+    log(`📋 ${players[pi].name} 接到悬赏令：${questText(q)}——奖金 ¥${q.reward}`, 'card');
+    renderPlayers();
+  }
+
+  function complete(pi){
+    const q = quests[pi];
+    players[pi].money += q.reward;
+    floatMoney(pi, q.reward);
+    log(`✅ ${players[pi].name} 完成悬赏令（${questText(q)}），领取奖金 ¥${q.reward}！`, 'good');
+    quests[pi] = null;
+    nextAt[pi] = round + REISSUE_AFTER;
+    renderPlayers();
+  }
+
+  function expire(pi){
+    const q = quests[pi];
+    log(`⌛ ${players[pi].name} 的悬赏令超期作废（${questText(q)}）`, 'bad');
+    quests[pi] = null;
+    nextAt[pi] = round + REISSUE_AFTER;
+  }
+
+  // ---------------- 监听 ----------------
+  Game.onRound.push(r => {
+    players.forEach((p, pi) => {
+      if (p.bankrupt){ if (quests[pi]) quests[pi] = null; return; }
+      const q = quests[pi];
+      if (q && r > q.deadline){ expire(pi); return; }
+      if (!q && r >= (nextAt[pi] || 1)) assign(pi);
+    });
+  });
+
+  Game.onLand.push((pi, i) => {
+    const q = quests[pi];
+    if (!q || players[pi].bankrupt) return;
+    if (q.type === 'land' && i === q.target) complete(pi);
+  });
+
+  Game.onPay.push((from, to, amount, reason) => {
+    if (to === null || !/租金/.test(reason)) return;
+    const q = quests[to];
+    if (!q || q.type !== 'rent' || players[to].bankrupt) return;
+    q.progress += amount;
+    if (q.progress >= q.goal) complete(to);
+  });
+
+  // ---------------- 玩家卡徽章 ----------------
+  Game.badges.push(pi => {
+    const q = quests[pi];
+    if (!q || players[pi].bankrupt) return '';
+    const label = q.type === 'land'
+      ? `📋 抵达「${TILES[q.target].name}」`
+      : `📋 收租 ${q.progress}/${q.goal}`;
+    return `<span class="quest-chip" title="悬赏令：${questText(q)}（奖金 ¥${q.reward}）">${label}</span>`;
+  });
+
+  // ---------------- 存档 ----------------
+  Game.saveExtras.push(() => ({ quests: { quest: quests.map(q => q ? { ...q } : null), nextAt: nextAt.slice() } }));
+  Game.loadExtras.push(sv => {
+    const m = sv.mods && sv.mods.quests;
+    if (!m) return;
+    quests = players.map((_, pi) => (m.quest && m.quest[pi]) || null);
+    nextAt = players.map((_, pi) => (m.nextAt && m.nextAt[pi]) || 1);
+  });
+
+  Game.onStart.push(() => {
+    quests = players.map(() => null);
+    nextAt = players.map(() => 1);
+    log('📋 悬赏任务已上线：完成悬赏令领奖金，超期作废，玩家卡 📋 徽章可看进度');
+    players.forEach((_, pi) => { if (!players[pi].bankrupt) assign(pi); });
+  });
+
+  Game.questsApi = { questOf: pi => quests[pi] || null, makeQuest, questText };
+});
+
+</script>
+<script>
+// ══════ modules/m-visit.js ══════
+// ================================================================
+// 模块：探监放贷（m-visit）
+// 监狱角不再只是「路过」：落格时若有人蹲监，可以替他交保释金捞人，
+// 换取他名下下一笔租金收入的 50% 提成（一次结清）。监狱从纯惩罚变博弈点。
+// 人类落格弹选择面板；AI 按目标身价决定是否捞人。随存档保存（mods.visit）。
+// 核心钩子：tileHandlers.jail / onPay / onRound / badges。
+// ================================================================
+Game.use('visit', () => {
+  const RATE = 0.5;          // 提成比例
+  const AI_MIN_CASH = 400;   // AI 探监的现金门槛
+
+  let shares = [];           // pi -> null | { to: 债权人pi, rate }
+
+  const shareOf = pi => shares[pi] || null;
+
+  // ---------------- 落监狱角：探监 ----------------
+  Game.tileHandlers.jail = async (pi) => {
+    const p = players[pi];
+    const jailed = players.map((q, k) => ({ q, k }))
+      .filter(o => o.k !== pi && !o.q.bankrupt && o.q.jail > 0);
+    if (!jailed.length || p.bankrupt || p.money < 50){
+      if (jailed.length && p.money >= 50) log(`⛓️ ${p.name} 路过监狱探风，没捞人`);
+      return;
+    }
+
+    if (p.isAI){
+      await sleep(450);
+      // AI：捞身价最高的（地产多的人出来后能产生更多提成）
+      const target = jailed.sort((a, b) => b.q.props.length - a.q.props.length)[0];
+      const worth = target.q.props.length;
+      if (worth >= 2 && p.money >= AI_MIN_CASH && Math.random() < 0.7){
+        await doBail(pi, target.k);
+      } else {
+        log(`⛓️ ${p.name} 路过监狱，权衡之后没捞人`);
+      }
+      return;
+    }
+
+    // 人类：弹选择面板
+    await waitVisit(pi, jailed);
+  };
+
+  function doBail(pi, target){
+    return new Promise(async resolve => {
+      const visitor = players[pi], prisoner = players[target];
+      const paid = await pay(pi, null, 50, `替${prisoner.name}缴纳保释金`);
+      if (paid > 0){
+        if (Game.poolApi) Game.poolApi.add(paid);
+        prisoner.jail = 0;
+        shares[target] = { to: pi, rate: RATE };
+        log(`🤝 ${visitor.name} 探监捞人：替 ${prisoner.name} 交了保释金，换取其下一笔租金的 ${RATE * 100}% 提成！`, 'good');
+        renderPlayers();
+      }
+      resolve();
+    });
+  }
+
+  function waitVisit(pi, jailed){
+    return new Promise(resolve => {
+      const p = players[pi];
+      $('visitTitle').textContent = '⛓️ 探监';
+      $('visitDesc').innerHTML =
+        `替狱中玩家缴纳保释金 <b>¥50</b>（计入奖池），他立刻出狱；` +
+        `作为交换，你抽成他<b>下一笔租金收入的 50%</b>（一次结清）。<br>` +
+        `<span style="font-size:12px;color:#9C9789">当前现金 ¥${p.money}</span>`;
+      $('visitList').innerHTML = jailed.map(o => `
+        <button class="tgt" data-k="${o.k}">
+          <span class="tgt-d">捞</span>
+          <span class="tgt-n">${o.q.name}</span>
+          <span class="tgt-t">${o.q.props.length} 处地产 · 还剩 ${o.q.jail} 次出狱机会</span>
+        </button>`).join('');
+      $('visitList').querySelectorAll('.tgt').forEach(b => {
+        b.onclick = async () => {
+          $('visitModal').classList.add('hidden');
+          await doBail(pi, +b.dataset.k);
+          resolve();
+        };
+      });
+      $('visitModal').classList.remove('hidden');
+      $('visitClose').onclick = () => {
+        $('visitModal').classList.add('hidden');
+        log(`⛓️ ${p.name} 路过监狱，没捞人`);
+        resolve();
+      };
+    });
+  }
+
+  // ---------------- 提成结算 ----------------
+  Game.onPay.push((from, to, amount, reason) => {
+    if (to === null || !/租金/.test(reason)) return;
+    const s = shareOf(to);
+    if (!s || players[to].bankrupt || players[s.to].bankrupt){
+      if (players[to] && players[to].bankrupt) shares[to] = null;
+      return;
+    }
+    const cut = Math.round(amount * s.rate);
+    if (cut <= 0) return;
+    players[to].money -= cut;
+    players[s.to].money += cut;
+    floatMoney(to, -cut);
+    floatMoney(s.to, cut);
+    log(`🏦 ${players[s.to].name} 收探监提成：${players[to].name} 租金 ¥${amount} 的 ${s.rate * 100}% = ¥${cut}`, 'card');
+    shares[to] = null;   // 一次结清
+    renderPlayers();
+  });
+
+  // 每回合兜底：破产的欠债人/债权人都清掉提成关系
+  Game.onRound.push(() => {
+    players.forEach((p, pi) => {
+      const s = shareOf(pi);
+      if (p.bankrupt || (s && players[s.to].bankrupt)) shares[pi] = null;
+    });
+  });
+
+  // ---------------- 徽章 ----------------
+  Game.badges.push(pi => {
+    const s = shareOf(pi);
+    if (!s) return '';
+    return `<span class="quest-chip" title="欠 ${players[s.to].name} 一笔租金提成（${s.rate * 100}%）：下一笔收租时结清">🏦 欠提成 ${s.rate * 100}%</span>`;
+  });
+
+  // ---------------- 存档 ----------------
+  Game.saveExtras.push(() => ({ visit: { shares: shares.map(s => s ? { ...s } : null) } }));
+  Game.loadExtras.push(sv => {
+    const m = sv.mods && sv.mods.visit;
+    if (!m) return;
+    shares = players.map((_, pi) => {
+      const s = m.shares && m.shares[pi];
+      return (s && Number.isFinite(s.to) && players[s.to]) ? { to: s.to, rate: +s.rate || RATE } : null;
+    });
+  });
+
+  Game.onStart.push(() => {
+    shares = players.map(() => null);
+    log('🤝 探监玩法已上线：落「监狱」角可替狱中玩家交保释金，换取其下一笔租金 50% 提成');
+  });
+
+  Game.visitApi = { shareOf, doBail };
+});
+
+</script>
+<script>
+// ══════ modules/m-vote.js ══════
+// ================================================================
+// 模块：城市建设项目（m-vote）
+// 第 15 回合起每隔几回合全体表决一个公共项目：同意者平摊建设费，
+// 得票过半即动工，效益全城共享直到终局。热座时有当面拉票的乐趣。
+//   🚇 地铁延伸：车站租金 ×1.5
+//   🌳 城市公园：地产租金 +10%
+//   🏙️ 商圈升级：过起点工资 +25%
+// 随存档保存（mods.vote）。
+// 核心钩子：onRound / rentFilters / salaryFilters。
+// ================================================================
+Game.use('vote', () => {
+  const FIRST_ROUND = 15;    // 首次表决回合
+  const EVERY = 4;           // 之后每隔几回合表决一次
+  const COST = 240;          // 项目建设费（同意者平摊）
+
+  const PROJECTS = [
+    { id:'metro',  icon:'🚇', name:'地铁延伸', desc:'车站租金 ×1.5',
+      tip:'把地铁线修到郊区：所有「车站」地块的租金变为 1.5 倍（含站台组合加成后）' },
+    { id:'park',   icon:'🌳', name:'城市公园', desc:'地产租金 +10%',
+      tip:'在城市中心修公园：所有「地产」地块租金 +10%' },
+    { id:'mall',   icon:'🏙️', name:'商圈升级', desc:'过起点工资 +25%',
+      tip:'打造核心商圈：任何人经过起点领工资时 +25%' },
+  ];
+
+  let active = [];           // 已动工的项目 id
+  let proposed = [];         // 已表决过的项目 id（不再重复提）
+
+  const isActive = id => active.includes(id);
+
+  // ---------------- 效益 ----------------
+  Game.rentFilters.push((owner, i, t, r) => {
+    if (t.type === 'station' && isActive('metro')) return r * 1.5;
+    if (t.type === 'prop' && isActive('park')) return r * 1.1;
+    return r;
+  });
+  Game.salaryFilters.push((pi, s) => isActive('mall') ? Math.round(s * 1.25) : s);
+
+  // ---------------- 表决 ----------------
+  Game.onRound.push(r => {
+    if (r < FIRST_ROUND || (r - FIRST_ROUND) % EVERY !== 0 || gameOver) return;
+    const alive = players.map((p, i) => ({ p, i })).filter(o => !o.p.bankrupt);
+    if (alive.length < 2) return;
+    const pool = PROJECTS.filter(pr => !proposed.includes(pr.id) && !isActive(pr.id));
+    if (!pool.length) return;
+    const proj = pool[Math.floor(Math.random() * pool.length)];
+    proposed.push(proj.id);
+    startVote(proj, alive);
+  });
+
+  function startVote(proj, alive){
+    log(`🏛️ 城市议案：「${proj.icon} ${proj.name}」——${proj.desc}。建设费 ¥${COST} 由赞成者平摊，进入表决…`, 'card');
+    const votes = {};   // pi -> true/false
+    let pending = alive.length;
+
+    const finish = () => {
+      const yes = alive.filter(o => votes[o.i]);
+      if (yes.length * 2 > alive.length){
+        const share = Math.ceil(COST / yes.length);
+        yes.forEach(o => { o.p.money = Math.max(0, o.p.money - share); floatMoney(o.i, -share); });
+        active.push(proj.id);
+        log(`✅ 议案通过：「${proj.icon} ${proj.name}」动工！${yes.length} 名赞成者各出资 ¥${share}，${proj.desc}（直至终局）`, 'good');
+      } else {
+        log(`❌ 议案否决：「${proj.icon} ${proj.name}」未获过半赞成（${yes.length}/${alive.length}），城市维持现状`, 'bad');
+      }
+      renderPlayers();
+      saveGame();
+    };
+
+    alive.forEach(o => {
+      const p = o.p;
+      if (p.isAI){
+        // AI：净资产越高越愿意投资公共设施（领先者想锁住优势，但穷的时候投不起票）
+        votes[o.i] = p.money >= 400 && (Math.random() < 0.75 || netWorth(p) >= 3000);
+        pending--;
+        if (pending === 0) finish();
+      } else {
+        waitVote(o.i, proj, choice => {
+          votes[o.i] = choice;
+          pending--;
+          if (pending === 0) finish();
+        });
+      }
+    });
+  }
+
+  function waitVote(pi, proj, cb){
+    const p = players[pi];
+    $('voteTitle').textContent = `🏛️ 城市议案：${proj.icon} ${proj.name}`;
+    $('voteDesc').innerHTML =
+      `<b>${proj.tip}</b><br>建设费 <b>¥${COST}</b> 由赞成者平摊（通过后生效直至终局）。<br>` +
+      `<span style="font-size:12px;color:#9C9789">${p.name} 的现金 ¥${p.money}</span>`;
+    $('voteYes').onclick = () => { $('voteModal').classList.add('hidden'); cb(true); };
+    $('voteNo').onclick  = () => { $('voteModal').classList.add('hidden'); cb(false); };
+    $('voteModal').classList.remove('hidden');
+  }
+
+  // ---------------- 中央徽章：已生效项目 ----------------
+  function drawChip(){
+    if (!active.length) return;
+    let chip = document.getElementById('projChip');
+    if (!chip){
+      chip = document.createElement('div');
+      chip.id = 'projChip';
+      const anchor = document.getElementById('weatherChip') || document.getElementById('roundInfo');
+      if (anchor) anchor.insertAdjacentElement(anchor.id === 'roundInfo' ? 'beforebegin' : 'afterend', chip);
+      else return;
+    }
+    chip.textContent = active.map(id => PROJECTS.find(x => x.id === id).icon).join('') + ' 城建';
+    chip.title = '已生效的城市项目：\n' +
+      active.map(id => { const x = PROJECTS.find(y => y.id === id); return `${x.icon} ${x.name}：${x.desc}`; }).join('\n');
+  }
+
+  // ---------------- 存档 ----------------
+  Game.saveExtras.push(() => ({ vote: { active: active.slice(), proposed: proposed.slice() } }));
+  Game.loadExtras.push(sv => {
+    const m = sv.mods && sv.mods.vote;
+    if (!m) return;
+    active = (m.active || []).filter(id => PROJECTS.some(x => x.id === id));
+    proposed = (m.proposed || []).filter(id => PROJECTS.some(x => x.id === id));
+    setTimeout(drawChip, 60);
+  });
+
+  Game.onStart.push(() => {
+    active = [];
+    proposed = [];
+    log(`🏛️ 城市建设已上线：第 ${FIRST_ROUND} 回合起每隔 ${EVERY} 回合表决一项公共项目，赞成者平摊 ¥${COST}`);
+  });
+
+  Game.voteApi = { isActive, active: () => active.slice(), proposed: () => proposed.slice() };
+});
+
+</script>
+<script>
+// ══════ modules/m-weather.js ══════
+// ================================================================
+// 模块：天气/新闻系统（m-weather）——可选玩法，大厅开关后经 ?mods=weather 启用
+// 每 3 回合全城换一次天气，效果通过既有钩子按「时间窗」叠加：
+//   连绵雨季：全城租金 -20%
+//   旅游旺季：经过起点工资 +50%
+//   全城停电：有建筑的地产租金 -40%（空地照常，停电只能省电费）
+//   施工季　：全城建造费 +25%
+//   城市庆典：全城租金 +20%
+// 晴朗为兜底状态。开局前 3 回合强制晴朗，保证开局公平。
+// 状态存 mods.weather；模块关闭时棋盘不显示徽章、钩子不注册，零影响。
+// ================================================================
+Game.use('weather', () => {
+  const DURATION = 3;                       // 每种天气持续的回合数
+  const CALM_UNTIL = 4;                     // 第 4 回合起才开始变天
+  const WEATHERS = [
+    { id:'sunny',    icon:'☀️', name:'晴朗',     desc:'风和日丽，一切照常',          weight:34 },
+    { id:'rain',     icon:'🌧️', name:'连绵雨季', desc:'全城租金 -20%',               weight:12 },
+    { id:'peak',     icon:'🏖️', name:'旅游旺季', desc:'经过起点工资 +50%',           weight:12 },
+    { id:'blackout', icon:'🔌', name:'全城停电', desc:'有建筑的地产租金 -40%',       weight:12 },
+    { id:'rebuild',  icon:'🚧', name:'施工季',   desc:'全城建造费 +25%',             weight:12 },
+    { id:'carnival', icon:'🎪', name:'城市庆典', desc:'全城租金 +20%，趁势收租吧',   weight:12 },
+  ];
+  const byId = id => WEATHERS.find(w => w.id === id) || WEATHERS[0];
+
+  // ---- 状态（可从存档恢复）----
+  let state = { id:'sunny', until: CALM_UNTIL };
+  const cur = () => byId(state.id);
+
+  // ---- 抽取下一种天气：按权重，且不与当前重复 ----
+  function pick(){
+    const pool = WEATHERS.filter(w => w.id !== state.id);
+    const total = pool.reduce((s, w) => s + w.weight, 0);
+    let r = Math.random() * total;
+    for (const w of pool){ r -= w.weight; if (r <= 0) return w; }
+    return pool[0];
+  }
+
+  // ---- 效果钩子（时间窗内才生效）----
+  Game.rentFilters.push((o, i, t, r) => {
+    const w = cur();
+    if (w.id === 'rain') return Math.round(r * 0.8);
+    if (w.id === 'carnival') return Math.round(r * 1.2);
+    if (w.id === 'blackout' && (tileLevel[i] || 0) > 0) return Math.round(r * 0.6);
+    return r;
+  });
+  Game.salaryFilters.push((pi, s) => cur().id === 'peak' ? Math.round(s * 1.5) : s);
+  Game.buildCostFilters.push((pi, c) => cur().id === 'rebuild' ? Math.round(c * 1.25) : c);
+
+  // ---- 回合推进：到点换天气 ----
+  Game.onRound.push(r => {
+    if (r < state.until) { render(); return; }
+    const w = pick();
+    state = { id: w.id, until: r + DURATION };
+    log(`${w.icon} 天气播报：${w.name}——${w.desc}（持续 ${DURATION} 回合）`, 'card');
+    render();
+  });
+
+  // ---- 棋盘徽章 ----
+  function render(){
+    const w = cur();
+    const left = Math.max(0, state.until - round);
+    let chip = document.getElementById('weatherChip');
+    if (!chip){
+      chip = document.createElement('div');
+      chip.id = 'weatherChip';
+      const anchor = document.getElementById('roundInfo');
+      if (anchor) anchor.insertAdjacentElement('beforebegin', chip);
+      else return;                      // 棋盘未就绪，下次再插
+    }
+    chip.textContent = `${w.icon} ${w.name}`;
+    chip.title = `${w.desc}\n${w.id === 'sunny' ? '' : `还剩 ${left} 回合`}`;
+  }
+
+  // ---- 存档（saveExtras 契约：返回要并入 sv.mods 的对象）----
+  Game.saveExtras.push(() => ({ weather: state }));
+  Game.loadExtras.push(sv => {
+    if (sv.mods && sv.mods.weather && byId(sv.mods.weather.id).id === sv.mods.weather.id){
+      state = sv.mods.weather;
+    }
+  });
+
+  Game.onStart.push(render);
+  log('🌦️ 天气系统已启用：每 3 回合全城换一次天气，留意播报把握收租与施工时机');
+});
+
+</script>
 <!-- 单文件版不含 mp.js -->
 <script>
 // ══════ _selftest.js ══════
