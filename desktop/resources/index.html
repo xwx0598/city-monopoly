@@ -58,9 +58,19 @@
   button:active { transform:translateY(1px); }
   #startBtn { background:var(--slate); color:#fff; box-shadow:0 6px 16px rgba(90,103,114,.35); }
   #startBtn:hover { background:var(--slate-deep); }
-  #resumeBtn { background:var(--oat); color:var(--ink-2); border:1px solid var(--line); }
-  #resumeBtn:hover { border-color:var(--slate-soft); }
-  #resumeBtn.hidden { display:none; }
+  #startBtn:disabled { opacity:.45; cursor:default; }
+  .saves { display:flex; flex-direction:column; gap:8px; }
+  .save-item { display:flex; align-items:center; gap:10px; background:var(--paper);
+    border:1px solid var(--line); border-radius:12px; padding:9px 12px; cursor:pointer; transition:all .15s; }
+  .save-item:hover { border-color:var(--slate-soft); background:#fff; }
+  .save-item .ico { font-size:17px; }
+  .save-main { flex:1; min-width:0; }
+  .save-main b { display:block; font-size:13.5px; font-weight:600; }
+  .save-main small { display:block; font-size:11px; color:var(--ink-3); margin-top:2px; }
+  .save-go { font-size:12px; color:#fff; background:var(--slate); border-radius:8px; padding:6px 12px; white-space:nowrap; }
+  .save-x { color:var(--ink-3); font-size:13px; padding:2px 5px; border-radius:6px; }
+  .save-x:hover { background:#EFE7DA; color:var(--clay); }
+  #saveRow.hidden { display:none; }
   .foot { text-align:center; font-size:11px; color:var(--ink-3); margin-top:14px; }
 </style>
 </head>
@@ -123,9 +133,13 @@
     </div>
   </div>
 
+  <div class="row hidden" id="saveRow">
+    <div class="label">本机存档</div>
+    <div class="saves" id="saveList"></div>
+  </div>
+
   <div class="btns">
     <button id="startBtn">开始新对局</button>
-    <button id="resumeBtn">继续上局</button>
   </div>
   <div class="foot">存档与设置自动保存在本机</div>
 </div>
@@ -136,11 +150,85 @@
   let mode = 'ai', ai = 2, diff = 'normal', n = 3, map = 'classic';
   const mods = new Set();
 
-  // 存档探测：有任意存档才显示「继续上局」
-  try {
-    const has = Object.keys(localStorage).some(k => k.startsWith(SAVE_PREFIX));
-    if (!has) document.getElementById('resumeBtn').classList.add('hidden');
-  } catch(e) {}
+  // ============ 存档扫描与展示 ============
+  // 关键：桌面壳必须用固定端口，localStorage 才跨启动保留（随机端口 = 每次都是新 origin）
+  function scanSaves(){
+    const out = [];
+    try {
+      for (const key of Object.keys(localStorage)){
+        if (!key.startsWith(SAVE_PREFIX)) continue;
+        let d; try { d = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){ continue; }
+        if (!d || d.v !== 2 || !Array.isArray(d.players) || !d.players.length) continue;
+        const id = key.slice(SAVE_PREFIX.length);
+        if (id.startsWith('mp_')) continue;                    // 联机档由服务器管，不进桌面菜单
+        const m = id === 'ai' ? 'ai' : 'hotseat';
+        const count = d.players.length;
+        const aiCount = Number.isFinite(+d.ai) && +d.ai > 0 ? +d.ai : count - 1;
+        const hsN = Number.isFinite(+d.n) && +d.n > 0 ? +d.n : count;
+        // 人数自洽校验：避免把别的模式遗留的档误读成当前档
+        if (m === 'ai' && count !== 1 + Math.min(3, Math.max(1, aiCount))) continue;
+        if (m === 'hotseat' && (count < 2 || count > 4 || count !== Math.min(4, Math.max(2, hsN)))) continue;
+        out.push({ key, mode: m, aiCount, n: hsN, count,
+          round: d.round || 0, savedAt: d.savedAt || 0, opt: d.opt || '' });
+      }
+    } catch(e){ return []; }
+    return out.sort((a, b) => b.savedAt - a.savedAt);
+  }
+
+  function fmtTime(ts){
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    if (diff < 0 || diff < 60e3) return '刚刚';
+    if (diff < 3600e3) return Math.floor(diff / 60e3) + ' 分钟前';
+    const d = new Date(ts), now = new Date();
+    const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    if (d.toDateString() === now.toDateString()) return '今天 ' + hm;
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + hm;
+  }
+
+  function resumeUrl(s){
+    const q = new URLSearchParams();
+    q.set('mode', s.mode);
+    if (s.mode === 'ai') q.set('ai', String(s.aiCount));
+    else q.set('n', String(s.n));
+    if (s.opt && s.opt !== '0') q.set('mods', s.opt);   // 续档带回开局时选的可玩模块
+    q.set('autoload', '1');                             // 直接进局，不再二次确认
+    return 'game.html?' + q.toString();
+  }
+
+  function renderSaves(){
+    const row = document.getElementById('saveRow');
+    const box = document.getElementById('saveList');
+    const saves = scanSaves();
+    box.innerHTML = '';
+    if (!saves.length){ row.classList.add('hidden'); return; }
+    row.classList.remove('hidden');
+    saves.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'save-item';
+      el.dataset.url = resumeUrl(s);
+      const title = s.mode === 'ai'
+        ? '单机 vs AI · ' + (s.aiCount > 1 ? s.aiCount + ' 位 AI' : 'AI 对手')
+        : '本地同屏 · ' + s.n + ' 人';
+      el.innerHTML = '<span class="ico">💾</span>' +
+        '<span class="save-main"><b>' + title + '</b>' +
+        '<small>第 ' + s.round + ' 回合 · ' + fmtTime(s.savedAt) + '</small></span>' +
+        '<span class="save-go">继续</span><span class="save-x" title="删除该存档">✕</span>';
+      el.addEventListener('click', e => {
+        if (e.target.closest('.save-x')){
+          e.stopPropagation();
+          if (confirm('删除这条存档？删除后无法恢复。')){
+            try { localStorage.removeItem(s.key); } catch(err) {}
+            renderSaves();
+          }
+          return;
+        }
+        location.href = el.dataset.url;
+      });
+      box.appendChild(el);
+    });
+  }
+  renderSaves();
 
   function seg(containerId, onPick){
     const box = document.getElementById(containerId);
@@ -187,8 +275,13 @@
     return q.toString();
   }
 
-  document.getElementById('startBtn').onclick = () => location.href = 'game.html?' + buildQS(true);
-  document.getElementById('resumeBtn').onclick = () => location.href = 'game.html?' + buildQS(false);
+  document.getElementById('startBtn').onclick = () => {
+    const targetKey = mode === 'ai' ? 'monopoly_save_v3_ai' : 'monopoly_save_v3_hotseat' + n;
+    let occupied = false;
+    try { occupied = !!localStorage.getItem(targetKey); } catch(e) {}
+    if (occupied && !confirm('这个模式已有存档，开始新对局会覆盖它，确定？')) return;
+    location.href = 'game.html?' + buildQS(true);
+  };
 })();
 </script>
 </body>

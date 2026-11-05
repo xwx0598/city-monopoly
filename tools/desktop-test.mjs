@@ -10,7 +10,7 @@
 // 退出码 0=全部通过。
 // ================================================================
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -70,6 +70,14 @@ try {
   await cdp('Page.enable'); await cdp('Runtime.enable');
 
   // ---------- 3. 开始菜单交互 ----------
+  console.log('\n[壳配置]');
+  // 固定端口是存档能跨启动保留的前提：localStorage 按 origin（含端口）隔离，
+  // port=0 会让每次启动都是新 origin，存档等于「重启即失忆」
+  const cfg = JSON.parse(readFileSync(path.join(ROOT, 'desktop/neutralino.config.json'), 'utf8'));
+  (Number.isInteger(cfg.port) && cfg.port > 0)
+    ? ok(`监听端口固定（${cfg.port}），存档可跨启动保留`)
+    : bad(`port 必须是固定正整数（当前 ${cfg.port}）——否则存档每次重启都会丢`);
+
   console.log('\n[开始菜单]');
   await cdp('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
   await sleep(1200);
@@ -77,17 +85,45 @@ try {
   const title = await ev(`document.querySelector('h1')?.textContent || ''`);
   title.replace(/\s/g, '').includes('大富翁') ? ok(`菜单页加载（${title.replace(/\s/g, '')}）`) : bad('菜单页标题异常: ' + title);
 
-  const resumeHidden = await ev(`document.getElementById('resumeBtn').classList.contains('hidden')`);
-  resumeHidden ? ok('无存档时隐藏「继续上局」') : bad('无存档时「继续上局」不应显示');
+  const saveRowHidden = await ev(`document.getElementById('saveRow').classList.contains('hidden')`);
+  saveRowHidden ? ok('无存档时隐藏「本机存档」区') : bad('无存档时不应显示存档区');
 
-  // 预置一个 AI 存档键，刷新后「继续上局」应出现
-  await ev(`localStorage.setItem('monopoly_save_v3_ai', '{"v":3}'); 1`);
-  await cdp('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
+  // 预置三种存档：AI×3（新格式带 opt）、AI×1（旧格式无 ai 字段）、同屏 3 人；另加一条人数不自洽的脏档
+  // 刷新后应只列出 3 条，且续档链接各自带上正确参数（这是「存档显示不出来」的核心回归）
+  await ev(`(() => {
+    const P = n => Array.from({ length: n }, () => ({ money: 1500, pos: 0, props: [], bankrupt: false }));
+    localStorage.clear();
+    localStorage.setItem('monopoly_save_v3_ai', JSON.stringify({ v:2, mode:'ai', ai:3, round:12,
+      savedAt: Date.now() - 60e3, players: P(4), opt:'synergy,items', mods:{} }));
+    localStorage.setItem('monopoly_save_v3_hotseat3', JSON.stringify({ v:2, mode:'hotseat', n:3, round:5,
+      savedAt: Date.now() - 3600e3, players: P(3), mods:{} }));
+    localStorage.setItem('monopoly_save_v3_hotseat4', JSON.stringify({ v:2, mode:'hotseat', n:4, round:9,
+      savedAt: Date.now() - 7200e3, players: P(2), mods:{} }));   // 人数不自洽 → 应被过滤
+    return 1; })()`);
+  await cdp('Page.reload');
   await sleep(1000);
-  const resumeShown = await ev(`!document.getElementById('resumeBtn').classList.contains('hidden')`);
-  resumeShown ? ok('有存档时显示「继续上局」') : bad('有存档时未显示「继续上局」');
+  const rows = await ev(`[...document.querySelectorAll('.save-item')].map(e => ({
+    title: e.querySelector('b').textContent, url: e.dataset.url }))`);
+  const rowTitles = rows.map(r => r.title).join(' | ');
+  rows.length === 2
+    ? ok(`存档列表显示 2 条（${rowTitles}）`)
+    : bad(`存档列表数量异常：${rows.length} 条 — ${rowTitles}`);
+  const aiRow = rows.find(r => r.url.includes('mode=ai'));
+  const hsRow = rows.find(r => r.url.includes('mode=hotseat'));
+  (aiRow && aiRow.url.includes('ai=4') === false && aiRow.url.includes('ai=3') &&
+   aiRow.url.includes('mods=synergy%2Citems') && aiRow.url.includes('autoload=1'))
+    ? ok(`AI 档续档链接正确（${aiRow.url}）`)
+    : bad('AI 档续档链接异常: ' + (aiRow && aiRow.url));
+  (hsRow && hsRow.url.includes('n=3'))
+    ? ok(`同屏档续档链接正确（${hsRow.url}）`)
+    : bad('同屏档续档链接异常: ' + (hsRow && hsRow.url));
+  const dirtyHidden = await ev(`![...document.querySelectorAll('.save-item')].some(e => e.dataset.url.includes('n=4'))`);
+  dirtyHidden ? ok('人数不自洽的脏档被过滤') : bad('脏档未被过滤');
 
-  // 切到同屏 4 人 + 繁华都会 + 羁绊，点开始，断言跳转参数
+  // 切到同屏 4 人 + 繁华都会 + 羁绊，点开始，断言跳转参数（先清档，避免触发「覆盖存档」二次确认）
+  await ev(`localStorage.clear(); 1`);
+  await cdp('Page.reload');
+  await sleep(800);
   await ev(`document.querySelector('#modeSegs .seg[data-mode=hotseat]').click();
             document.querySelector('#hsRow .seg[data-n="4"]').click();
             document.querySelector('#mapSegs .seg[data-map=metro]').click();

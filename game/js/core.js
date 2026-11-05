@@ -162,6 +162,9 @@ function saveGame(){
     Game.saveExtras.forEach(f => { try { Object.assign(mods, f()); } catch(e){ console.warn('[saveExtras 失败]', e); } });
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 2, mode: GAME_MODE, savedAt: Date.now(), round, turn,
+      // ai / n：续档时人数校验用（历史存档没有这两个字段，读取方需按 players.length 兜底）
+      ai: GAME_MODE === 'ai' ? AI_COUNT : undefined,
+      n: GAME_MODE === 'hotseat' ? HOTSEAT_N : undefined,
       players: players.map(p => ({ money:p.money, pos:p.pos, props:[...p.props], bankrupt:p.bankrupt, skip:p.skip || 0, jail:p.jail || 0, jailCard:p.jailCard || 0, insured:p.insured || 0 })),
       tileOwner: { ...tileOwner },
       levels: { ...tileLevel },

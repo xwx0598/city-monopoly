@@ -330,9 +330,13 @@ function readSlot(slot){
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d || d.v !== 2 || d.mode !== slot.mode) return null;
-    // 单机档的人数取决于 AI 数量（人类 1 + AI n），同屏档固定
-    const expect = slot.mode === 'ai' ? 1 + Math.min(3, Math.max(1, parseInt(d.ai) || 1)) : slot.expect;
-    if (!Array.isArray(d.players) || d.players.length !== expect) return null;
+    // 单机档的人数取决于 AI 数量（人类 1 + AI n），同屏档固定。
+    // 历史存档没有 ai 字段（旧版没写），按 players.length 反推，否则整档会被误判为无效而不显示。
+    const nPlayers = Array.isArray(d.players) ? d.players.length : 0;
+    const aiCount = Number.isFinite(+d.ai) && +d.ai > 0 ? +d.ai : nPlayers - 1;
+    const expect = slot.mode === 'ai' ? 1 + Math.min(3, Math.max(1, aiCount)) : slot.expect;
+    if (!nPlayers || nPlayers !== expect) return null;
+    d._aiCount = slot.mode === 'ai' ? expect - 1 : 0;   // 归一化后的人数，供标题/续档链接使用
     return d;
   } catch (e) { return null; }
 }
@@ -354,12 +358,13 @@ function renderSaves(){
     let title, sub;
     if (slot.id === 'ai'){
       let lv = '普通';
-      const a = data.attrs;
+      // 难度存在 mods['ai-diff'].attrs 里（旧代码读的是不存在的一级字段，永远显示「普通」）
+      const a = (data.mods && data.mods['ai-diff'] && data.mods['ai-diff'].attrs) || data.attrs;
       if (a && a.buy && a.build && a.tactic){
         const vals = [a.buy, a.build, a.tactic];
-        lv = vals.every(v => v === vals[0]) ? dname[vals[0]] : '自定义';
+        lv = vals.every(v => v === vals[0]) ? (dname[vals[0]] || '普通') : '自定义';
       }
-      title = '继续存档 · ' + (data.ai > 1 ? data.ai + ' 位 AI' : 'AI 对手');
+      title = '继续存档 · ' + (data._aiCount > 1 ? data._aiCount + ' 位 AI' : 'AI 对手');
       sub = `第 ${data.round} 回合 · ${lv} · <span class="nw">${fmtTime(data.savedAt)}</span>`;
     } else {
       title = '继续存档 · ' + slot.short;
@@ -367,7 +372,7 @@ function renderSaves(){
     }
 
     const url = '../../game/html/game.html?mode=' + slot.mode + (slot.n ? '&n=' + slot.n : '')
-      + (slot.id === 'ai' && data.ai ? '&ai=' + data.ai : '')
+      + (slot.id === 'ai' && data._aiCount ? '&ai=' + data._aiCount : '')
       + (data.opt && data.opt !== '0' ? '&mods=' + data.opt : '')   // 续档带回开局时选的可选玩法
       + '&autoload=1';
 
